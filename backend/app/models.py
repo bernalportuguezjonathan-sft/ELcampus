@@ -42,6 +42,7 @@ class MetodoPago(str, enum.Enum):
 
 class EstadoPedidoMesa(str, enum.Enum):
     abierto = "abierto"
+    cuenta_pedida = "cuenta_pedida"
     pagado = "pagado"
 
 
@@ -87,6 +88,13 @@ class Producto(Base):
             name="ck_producto_precio_por_kg_si_es_peso",
         ),
     )
+
+    @property
+    def precio_de_venta(self) -> float:
+        """Lo que se cobra por unidad — o por kilo si el producto va por peso."""
+        if self.tipo_venta == TipoVenta.peso:
+            return self.precio_por_kg
+        return self.precio
 
 
 class Plato(Base):
@@ -164,8 +172,16 @@ class PedidoMesa(Base):
     estado: Mapped[EstadoPedidoMesa] = mapped_column(SAEnum(EstadoPedidoMesa), default=EstadoPedidoMesa.abierto)
     mesero_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
     hora_apertura: Mapped[datetime] = mapped_column(default=datetime.now)
+    hora_cuenta_pedida: Mapped[datetime | None] = mapped_column(default=None)
+    venta_id: Mapped[int | None] = mapped_column(ForeignKey("ventas.id"), default=None)
 
-    detalles: Mapped[list["DetallePedidoMesa"]] = relationship(back_populates="pedido")
+    detalles: Mapped[list["DetallePedidoMesa"]] = relationship(
+        back_populates="pedido", cascade="all, delete-orphan"
+    )
+
+    @property
+    def total(self) -> float:
+        return float(round(sum(detalle.subtotal for detalle in self.detalles)))
 
 
 class DetallePedidoMesa(Base):
@@ -179,6 +195,22 @@ class DetallePedidoMesa(Base):
     notas: Mapped[str | None] = mapped_column(default=None)
 
     pedido: Mapped["PedidoMesa"] = relationship(back_populates="detalles")
+    producto: Mapped["Producto | None"] = relationship()
+    plato: Mapped["Plato | None"] = relationship()
+
+    @property
+    def nombre(self) -> str:
+        return self.producto.nombre if self.producto is not None else self.plato.nombre
+
+    @property
+    def precio_unitario(self) -> float:
+        if self.producto is not None:
+            return self.producto.precio_de_venta
+        return self.plato.precio
+
+    @property
+    def subtotal(self) -> float:
+        return float(round(self.cantidad * self.precio_unitario))
 
     __table_args__ = (
         CheckConstraint(

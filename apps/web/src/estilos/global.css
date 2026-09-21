@@ -1,0 +1,190 @@
+/* Paleta sacada del logo. Cada color hace una sola cosa:
+   amarillo = acción, naranja = advertencia, rojo = destructivo,
+   verde = confirmación. Ver docs/plan.md. */
+:root {
+  --ground: #12100b;
+  --surface: #1b1811;
+  --surface-2: #241f16;
+  --line: #332c20;
+  --line-soft: #2a2419;
+
+  --amarillo: #ffc20e;
+  --amarillo-suave: #ffd65c;
+  --llama: #ff7a1a;
+  --salsa: #e04b3a;
+  --verde: #3bb273;
+
+  --espuma: #f5f0e4;
+  --humo: #9a9080;
+  --humo-tenue: #6e6759;
+
+  --display: 'Archivo Black', 'Arial Black', sans-serif;
+  --body: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'JetBrains Mono', Consolas, monospace;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#raiz {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--espuma);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--display);
+  font-weight: 400;
+  margin: 0;
+}
+
+button {
+  font-family: var(--body);
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--amarillo-suave);
+  outline-offset: 2px;
+}
+
+input {
+  font-family: var(--body);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--espuma);
+  padding: 11px 13px;
+  font-size: 16px;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------- botones */
+.btn-primario {
+  background: var(--amarillo);
+  color: #12100b;
+  border: none;
+  border-radius: 5px;
+  font-family: var(--display);
+  font-size: 16px;
+  padding: 15px;
+  width: 100%;
+}
+.btn-primario:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn-secundario {
+  background: transparent;
+  color: var(--espuma);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 13px;
+  width: 100%;
+}
+
+.btn-peligro {
+  background: none;
+  border: none;
+  color: var(--salsa);
+  font-size: 13px;
+  padding: 0;
+}
+
+/* ------------------------------------------------------------ avisos */
+.aviso {
+  border-radius: 4px;
+  padding: 10px 13px;
+  font-size: 14px;
+  border: 1px solid;
+}
+.aviso-error {
+  color: var(--salsa);
+  border-color: rgba(224, 75, 58, 0.5);
+  background: rgba(224, 75, 58, 0.1);
+}
+.aviso-ok {
+  color: var(--verde);
+  border-color: rgba(59, 178, 115, 0.45);
+  background: rgba(59, 178, 115, 0.1);
+}
+.aviso-atencion {
+  color: var(--llama);
+  border-color: rgba(255, 122, 26, 0.5);
+  background: rgba(255, 122, 26, 0.1);
+}
+
+.etiqueta {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--humo);
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------- estructura */
+.barra {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  background: #0b0a07;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--humo);
+}
+.barra .marca {
+  font-family: var(--display);
+  color: var(--amarillo);
+  font-size: 15px;
+}
+.barra .der {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chip-ok {
+  color: var(--verde);
+  font-size: 12px;
+}
+.chip-mal {
+  color: var(--salsa);
+  font-size: 12px;
+}
+
+.centrado {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.cargando {
+  padding: 32px;
+  color: var(--humo);
+}

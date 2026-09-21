@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-DATABASE_URL = "sqlite:///./elcampus.db"
+from .config import DATABASE_URL
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 

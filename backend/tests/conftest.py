@@ -5,6 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app import models
+from app.auth import crear_token
 from app.database import Base, get_db
 from app.main import app
 from app.security import hash_password
@@ -34,20 +35,24 @@ def db():
 
 
 @pytest.fixture
-def client(db):
-    app.dependency_overrides[get_db] = lambda: db
-    with TestClient(app) as c:
-        yield c
-    app.dependency_overrides.clear()
-
-
-@pytest.fixture
 def datos(db):
-    vendedor = models.Usuario(
-        nombre="Vendedor de prueba",
-        rol=models.RolUsuario.vendedor,
-        password_hash=hash_password("clave-de-prueba"),
-    )
+    usuarios = {
+        "admin": models.Usuario(
+            nombre="admin",
+            rol=models.RolUsuario.administrador,
+            password_hash=hash_password("clave-de-prueba"),
+        ),
+        "vendedor": models.Usuario(
+            nombre="vendedor",
+            rol=models.RolUsuario.vendedor,
+            password_hash=hash_password("clave-de-prueba"),
+        ),
+        "mesero": models.Usuario(
+            nombre="mesero",
+            rol=models.RolUsuario.mesero,
+            password_hash=hash_password("clave-de-prueba"),
+        ),
+    }
     cerveza = models.Producto(
         codigo_barras="7701234567890",
         nombre="Cerveza Aguila 330ml",
@@ -63,11 +68,37 @@ def datos(db):
         stock_actual=20,
     )
     picada = models.Plato(nombre="Picada", precio=45000, tipo=models.TipoPlato.fijo)
-    db.add_all([vendedor, cerveza, morraja, picada])
+
+    db.add_all([*usuarios.values(), cerveza, morraja, picada])
     db.commit()
+
     return {
-        "vendedor": vendedor,
+        **usuarios,
         "cerveza": cerveza,
         "morraja": morraja,
         "picada": picada,
     }
+
+
+@pytest.fixture
+def cliente(db, datos):
+    """Cliente autenticado como vendedor, que es quien cobra."""
+    app.dependency_overrides[get_db] = lambda: db
+    with TestClient(app) as c:
+        c.headers["Authorization"] = f"Bearer {crear_token(datos['vendedor'])}"
+        yield c
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def como(db, datos):
+    """Fabrica clientes con otro rol: como('mesero'), como('admin')."""
+    app.dependency_overrides[get_db] = lambda: db
+
+    def fabricar(rol: str) -> TestClient:
+        c = TestClient(app)
+        c.headers["Authorization"] = f"Bearer {crear_token(datos[rol])}"
+        return c
+
+    yield fabricar
+    app.dependency_overrides.clear()

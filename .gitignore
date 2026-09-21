@@ -5,8 +5,12 @@ venv/
 *.db
 *.db-wal
 *.db-shm
+.secreto
 .env
 node_modules/
 dist/
+dist-ssr/
 build/
+.vite/
+*.tsbuildinfo
 .DS_Store

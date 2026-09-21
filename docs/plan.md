@@ -14,12 +14,34 @@ original de referencia.
 | Métodos de pago | Efectivo + Nequi + Daviplata + tarjeta desde el inicio (`metodo_pago` en `ventas`) |
 | Venta por peso | Sí aplica (ej. morraja). `productos.tipo_venta` (unidad/peso) + `precio_por_kg` |
 
+## Decisión del 21 sep 2026: se descarta PySide6
+
+La caja del vendedor **no** es una app de escritorio aparte. Es la misma app
+web de React abierta en modo kiosco en el PC del mostrador.
+
+**Por qué:** el lector de código de barras se comporta como un teclado, así
+que el navegador lo maneja igual de bien que Qt. A cambio se gana un solo
+código para las tres pantallas, una sola estética, actualizaciones instantáneas
+y la mitad del trabajo de mantenimiento. Los mockups ya eran HTML, así que se
+reutilizaron tal cual.
+
+**Lo que hay que vigilar:** si más adelante hace falta imprimir recibos en una
+impresora térmica, el navegador es más incómodo que una app nativa. Se
+resolvería con un pequeño servicio local de impresión, no volviendo a Qt.
+
 ## Arquitectura
 
-Servidor central FastAPI + SQLite (modo WAL) corriendo en el PC del vendedor.
-Vendedor habla por `localhost` (no depende del WiFi para cobrar). Mesero y
-administrador se conectan por WiFi local; el administrador remoto entra por
-Tailscale, no por un puerto expuesto a internet.
+Un solo proceso sirve todo: FastAPI entrega la API en `/api` y, ya compilada,
+también la app web. La caja abre `localhost` (no depende del WiFi para cobrar),
+los celulares del salón entran por la IP del PC, y el administrador remoto
+entra por Tailscale — nunca por un puerto abierto a internet.
+
+```
+apps/web (React)  ──HTTP /api──►  backend (FastAPI)  ──►  SQLite (WAL)
+     │                                  ▲
+     └──────WebSocket /api/eventos──────┘
+            (mesa pide la cuenta → salta sola a la caja)
+```
 
 ## Modelo de datos (9 tablas)
 
@@ -68,25 +90,34 @@ listas de productos y platos.
 - **`passlib` quedó descartado** — está abandonado y rompe con bcrypt 5.
   Se usa `bcrypt` directo.
 
-## Estado actual
+## Estado actual (21 sep 2026)
 
-Fase 0:
-- [x] Repo y estructura de carpetas (`backend/`, `apps/vendedor/`, `apps/web/`)
-- [x] Modelo de datos en SQLAlchemy con las decisiones del 10 sep
-- [x] Servidor FastAPI arrancando, WAL activado
+Backend — 34 pruebas automáticas pasando:
+- [x] Sesiones reales con JWT, claves con bcrypt, permisos por rol
+- [x] Productos (alta por código de barras, búsqueda, cambio de precio)
+- [x] Platos, con los especiales filtrados por sus fechas
+- [x] Cobro en transacción atómica, anulación con devolución de stock
+- [x] Pedidos de mesa + WebSocket: la cuenta salta sola a la caja
+- [x] Cobrar una mesa cierra el pedido y crea la venta en una sola operación
+- [x] Inventario: entradas que suman, ajustes de conteo con rastro, alertas
+- [x] Cierre de caja con cuadre de efectivo
+- [x] Reportes del día, comparación contra la semana pasada, más vendidos
 
-Fase 1 (motor de inventario y ventas):
-- [x] Alta y consulta de productos por código de barras
-- [x] Cobro (`POST /ventas`) en transacción atómica: calcula el total, arma el
-      detalle, descuenta stock y registra el movimiento de inventario
-- [x] Escanear el mismo código dos veces suma cantidad en una sola línea
-- [x] Anulación de venta (`POST /ventas/{id}/anular`) que devuelve el stock
-- [x] 9 pruebas automáticas del camino del dinero (`pytest`)
-- [ ] Alembic (migraciones) — pendiente antes de que el esquema se estabilice
-- [ ] Cierre de caja (la tabla existe, faltan los endpoints)
-- [ ] App de escritorio del vendedor (PySide6)
-- [ ] Login / autenticación real — hoy el `vendedor_id` se manda en la
-      petición, sin verificar quién es
+Frontend — las tres pantallas funcionando y probadas en el navegador:
+- [x] Login
+- [x] Caja: escaneo con foco permanente, suma de repetidos, flujo de peso
+      en kilos, vuelto, cobro, anulación, avisos de mesa en vivo
+- [x] Mesero: cuadrícula de mesas con estado, detalle con +/−, pedir la cuenta
+- [x] Admin: ventas del día, cómo pagaron, se está acabando, más vendidos
+
+Pendiente:
+- [ ] Alembic (migraciones) — antes de cargar datos reales
+- [ ] Comanda a cocina: hoy el mesero agrega platos y **la cocina no se entera**
+- [ ] Costo por producto (sin costo solo se ve venta, nunca utilidad)
+- [ ] Modo offline del mesero (si se cae el WiFi no puede tomar pedidos)
+- [ ] Carga masiva del catálogo + autocompletado con Open Food Facts
+- [ ] Backups automáticos
+- [ ] Decidir si se imprimen recibos térmicos
 
 ## Pendiente de decidir
 
@@ -94,3 +125,7 @@ Fase 1 (motor de inventario y ventas):
   totales se redondean a peso entero al cobrar. Migrar a enteros (pesos)
   sería más exacto y hoy costaría poco; más adelante, con datos reales
   encima, cuesta más.
+- **Un pago por venta.** Si un cliente paga mitad en efectivo y mitad por
+  Nequi, hoy no se puede registrar así.
+- **No hay descuentos ni cortesías.** Una invitación al cliente frecuente
+  hoy tocaría registrarla como anulación, que ensucia el historial.

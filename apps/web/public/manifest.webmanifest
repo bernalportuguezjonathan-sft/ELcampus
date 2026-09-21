@@ -1,0 +1,12 @@
+{
+  "name": "El Campus",
+  "short_name": "El Campus",
+  "description": "Caja, inventario y pedidos de El Campus",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#12100B",
+  "theme_color": "#12100B",
+  "lang": "es-CO",
+  "icons": []
+}
