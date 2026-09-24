@@ -430,6 +430,8 @@
   height: 100%;
 }
 .caja-cuerpo {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: 1fr 340px;
   flex: 1;
@@ -629,6 +631,8 @@ td.vacio {
 }
 
 .caja-pie {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 18px;
@@ -650,6 +654,8 @@ td.vacio {
   margin: 0 auto;
 }
 .celular-cuerpo {
+  position: relative;
+  z-index: 1;
   flex: 1;
   overflow: auto;
   padding: 16px;
@@ -658,6 +664,8 @@ td.vacio {
   gap: 12px;
 }
 .celular-pie {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 9px;
@@ -671,10 +679,19 @@ td.vacio {
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
+/* Con 16 mesas caben cuatro por fila en cuanto hay un poco más de ancho. */
+@media (min-width: 440px) {
+  .mesas {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+/* Opacas a propósito: son placas de café mate apoyadas sobre el brasero.
+   La sombra las despega del fondo sin tocar el color de las letras. */
 .mesa {
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: var(--surface);
+  border: 1px solid var(--mesa-borde);
+  border-radius: 7px;
+  background: var(--mesa-fondo);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
   padding: 14px 6px;
   min-height: 86px;
   display: flex;
@@ -701,8 +718,8 @@ td.vacio {
   color: var(--humo);
 }
 .mesa.ocupada {
-  border-color: rgba(255, 199, 0, 0.55);
-  background: rgba(255, 199, 0, 0.09);
+  border-color: color-mix(in srgb, var(--neon) 55%, transparent);
+  background: color-mix(in srgb, var(--neon) 11%, var(--mesa-fondo));
 }
 .mesa.ocupada .mesa-numero,
 .mesa.ocupada .mesa-estado {
@@ -710,7 +727,7 @@ td.vacio {
 }
 .mesa.cuenta {
   border-color: var(--llama);
-  background: rgba(255, 122, 26, 0.12);
+  background: color-mix(in srgb, var(--llama) 14%, var(--mesa-fondo));
 }
 .mesa.cuenta .mesa-numero,
 .mesa.cuenta .mesa-estado {
@@ -864,6 +881,61 @@ td.vacio {
   }
 }
 
+/* Lo ya seleccionado se marca en el menú: el mesero ve de un vistazo qué
+   lleva anotado sin tener que subir a mirar la lista. Volver a tocarlo no
+   suma — para eso están los botones + y −. */
+.tarjeta-item {
+  position: relative;
+}
+.tarjeta-item.elegido {
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 12%, transparent);
+}
+.tarjeta-item.elegido b {
+  color: var(--neon);
+}
+.insignia {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 20px;
+  padding: 1px 5px;
+  border-radius: 20px;
+  background: var(--neon);
+  color: var(--ground);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* La cifra de la cuenta se lee de lejos: el mesero la mira de reojo con el
+   celular en la mano mientras le habla al cliente. */
+.cuenta-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 4px;
+}
+.cuenta-cifra {
+  font-family: var(--display);
+  font-size: 30px;
+  color: var(--neon);
+  text-shadow: 0 0 10px var(--neon-glow);
+}
+
+/* Los avisos entran y salen solos; que no aparezcan de golpe. */
+.aviso-ok,
+.aviso-error {
+  animation: aparece-aviso 0.2s ease-out;
+}
+@keyframes aparece-aviso {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
 /* ------------------------------------------ confirmar el pedido */
 /* El mesero ve exactamente lo que va a subir antes de que la mesa se
    ocupe. Es la última parada antes de que esto llegue a la caja. */
@@ -984,6 +1056,8 @@ td.vacio {
   height: 100%;
 }
 .panel-cuerpo {
+  position: relative;
+  z-index: 1;
   flex: 1;
   overflow: auto;
   padding: 26px clamp(16px, 4vw, 40px) 40px;

@@ -50,6 +50,7 @@ export default function Mesa() {
   const [borrador, setBorrador] = useState<Linea[]>(() => leerBorrador(numero))
   const [eligiendo, setEligiendo] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
+  const [viendoCuenta, setViendoCuenta] = useState(false)
   const [subiendo, setSubiendo] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [listo, setListo] = useState<string | null>(null)
@@ -75,20 +76,41 @@ export default function Mesa() {
     guardarBorrador(numero, borrador)
   }, [numero, borrador])
 
+  // Los avisos se van solos. El mesero está de pie con el celular en la
+  // mano: un mensaje que se queda pegado le tapa la mesa que está mirando.
+  useEffect(() => {
+    if (!listo) return
+    const reloj = setTimeout(() => setListo(null), 3500)
+    return () => clearTimeout(reloj)
+  }, [listo])
+
+  useEffect(() => {
+    if (!error) return
+    const reloj = setTimeout(() => setError(null), 6000)
+    return () => clearTimeout(reloj)
+  }, [error])
+
   const totalBorrador = useMemo(
     () => borrador.reduce((suma, l) => suma + l.precio * l.cantidad, 0),
     [borrador],
   )
 
+  // Cuánto lleva cada cosa, para marcarlo en el menú.
+  const yaElegido = useMemo(
+    () => new Map(borrador.map((l) => [l.clave, l.cantidad])),
+    [borrador],
+  )
+
+  /** Tocar un producto lo selecciona y ya. Volver a tocarlo no suma nada:
+   *  la cantidad se maneja solo con los botones + y −, que es donde el
+   *  mesero puede ver lo que está haciendo antes de subirlo. */
   function anotar(item: { producto_id?: number; plato_id?: number; nombre: string; precio: number }) {
     const clave = item.plato_id ? `plato-${item.plato_id}` : `producto-${item.producto_id}`
-    setBorrador((lineas) => {
-      const ya = lineas.find((l) => l.clave === clave)
-      if (ya) {
-        return lineas.map((l) => (l.clave === clave ? { ...l, cantidad: l.cantidad + 1 } : l))
-      }
-      return [...lineas, { ...item, clave, cantidad: 1 }]
-    })
+    setBorrador((lineas) =>
+      lineas.some((l) => l.clave === clave)
+        ? lineas
+        : [...lineas, { ...item, clave, cantidad: 1 }],
+    )
     setListo(null)
   }
 
@@ -125,14 +147,21 @@ export default function Mesa() {
     }
   }
 
-  async function pedirCuenta() {
+  /** Abre la cuenta para leérsela al cliente. La primera vez además le
+   *  avisa a la caja; después solo la vuelve a mostrar, porque el cliente
+   *  bien puede preguntar dos veces cuánto va. */
+  async function verCuenta() {
     if (!pedido) return
+    setViendoCuenta(true)
+
+    if (pedido.estado === 'cuenta_pedida') return
+
     setSubiendo(true)
     try {
       setPedido(await api.post<Pedido>(`/pedidos/${pedido.id}/pedir-cuenta`))
-      setError(null)
+      setListo('La caja ya tiene la cuenta.')
     } catch (fallo) {
-      setError(fallo instanceof Error ? fallo.message : 'No se pudo pedir la cuenta.')
+      setError(fallo instanceof Error ? fallo.message : 'No se pudo avisar a la caja.')
     } finally {
       setSubiendo(false)
     }
@@ -152,19 +181,17 @@ export default function Mesa() {
         </button>
         <span className="marca">MESA {numero}</span>
         <span className="der pista">
-          {ocupada ? `Abierta ${hora(pedido!.hora_apertura)}` : 'Libre'}
+          {!ocupada
+            ? 'Libre'
+            : pedido!.estado === 'cuenta_pedida'
+              ? 'Cuenta pedida'
+              : `Abierta ${hora(pedido!.hora_apertura)}`}
         </span>
       </header>
 
       <div className="celular-cuerpo">
         {error && <p className="aviso aviso-error">{error}</p>}
         {listo && <p className="aviso aviso-ok">{listo}</p>}
-        {pedido?.estado === 'cuenta_pedida' && (
-          <p className="aviso aviso-atencion">
-            La cuenta ya está en la caja. Puedes seguir anotando si el cliente pide algo más.
-          </p>
-        )}
-
         {/* ---------------------------------------- lo que ya está en la caja */}
         {ocupada && pedido!.detalles.length > 0 && (
           <section className="bloque">
@@ -239,35 +266,47 @@ export default function Mesa() {
             </button>
           </div>
           <div className="elector-lista">
-            {platos.map((plato) => (
-              <button
-                key={`plato-${plato.id}`}
-                className={`tarjeta-item ${plato.tipo === 'especial' ? 'especial' : ''}`}
-                onClick={() =>
-                  anotar({ plato_id: plato.id, nombre: plato.nombre, precio: plato.precio })
-                }
-              >
-                <b>{plato.nombre}</b>
-                <small className="num">{plata(plato.precio)}</small>
-                {plato.tipo === 'especial' && <span className="marca-especial">Especial</span>}
-              </button>
-            ))}
-            {productos.map((producto) => (
-              <button
-                key={`producto-${producto.id}`}
-                className="tarjeta-item"
-                onClick={() =>
-                  anotar({
-                    producto_id: producto.id,
-                    nombre: producto.nombre,
-                    precio: producto.precio_de_venta,
-                  })
-                }
-              >
-                <b>{producto.nombre}</b>
-                <small className="num">{plata(producto.precio_de_venta)}</small>
-              </button>
-            ))}
+            {platos.map((plato) => {
+              const lleva = yaElegido.get(`plato-${plato.id}`)
+              return (
+                <button
+                  key={`plato-${plato.id}`}
+                  className={`tarjeta-item ${plato.tipo === 'especial' ? 'especial' : ''} ${
+                    lleva ? 'elegido' : ''
+                  }`}
+                  aria-pressed={Boolean(lleva)}
+                  onClick={() =>
+                    anotar({ plato_id: plato.id, nombre: plato.nombre, precio: plato.precio })
+                  }
+                >
+                  <b>{plato.nombre}</b>
+                  <small className="num">{plata(plato.precio)}</small>
+                  {plato.tipo === 'especial' && <span className="marca-especial">Especial</span>}
+                  {lleva && <span className="insignia num">{formatoCantidad(lleva)}</span>}
+                </button>
+              )
+            })}
+            {productos.map((producto) => {
+              const lleva = yaElegido.get(`producto-${producto.id}`)
+              return (
+                <button
+                  key={`producto-${producto.id}`}
+                  className={`tarjeta-item ${lleva ? 'elegido' : ''}`}
+                  aria-pressed={Boolean(lleva)}
+                  onClick={() =>
+                    anotar({
+                      producto_id: producto.id,
+                      nombre: producto.nombre,
+                      precio: producto.precio_de_venta,
+                    })
+                  }
+                >
+                  <b>{producto.nombre}</b>
+                  <small className="num">{plata(producto.precio_de_venta)}</small>
+                  {lleva && <span className="insignia num">{formatoCantidad(lleva)}</span>}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
@@ -317,6 +356,46 @@ export default function Mesa() {
         </div>
       )}
 
+      {/* ------------------------------------------------- la cuenta */}
+      {viendoCuenta && pedido && (
+        <div className="velo" role="dialog" aria-modal="true" aria-labelledby="titulo-cuenta">
+          <div className="confirmacion">
+            <h2 id="titulo-cuenta" className="confirmacion-titulo">
+              Cuenta de la mesa {numero}
+            </h2>
+
+            <div className="confirmacion-lista">
+              {pedido.detalles.map((detalle) => (
+                <div key={detalle.id} className="confirmacion-linea">
+                  <span className="confirmacion-cantidad num">
+                    {formatoCantidad(detalle.cantidad)}
+                  </span>
+                  <span className="confirmacion-nombre">{detalle.nombre}</span>
+                  <span className="confirmacion-precio num">{plata(detalle.subtotal)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="cuenta-total">
+              <span className="etiqueta">Total a pagar</span>
+              <span className="cuenta-cifra num">{plata(pedido.total)}</span>
+            </div>
+
+            {borrador.length > 0 && (
+              <p className="aviso aviso-atencion">
+                Ojo: tienes {borrador.length}{' '}
+                {borrador.length === 1 ? 'cosa anotada' : 'cosas anotadas'} sin enviar por{' '}
+                {plata(totalBorrador)}. No están en esta cuenta.
+              </p>
+            )}
+
+            <button className="btn-primario" onClick={() => setViendoCuenta(false)}>
+              Listo
+            </button>
+          </div>
+        </div>
+      )}
+
       <footer className="celular-pie">
         <button className="btn-secundario" onClick={() => setEligiendo((v) => !v)}>
           {eligiendo ? 'Ocultar el menú' : 'Agregar algo más'}
@@ -329,10 +408,10 @@ export default function Mesa() {
         ) : (
           <button
             className="btn-primario"
-            onClick={() => void pedirCuenta()}
-            disabled={subiendo || !ocupada || pedido!.estado === 'cuenta_pedida'}
+            onClick={() => void verCuenta()}
+            disabled={subiendo || !ocupada}
           >
-            {pedido?.estado === 'cuenta_pedida' ? 'CUENTA YA PEDIDA' : 'PEDIR LA CUENTA'}
+            {pedido?.estado === 'cuenta_pedida' ? 'VER LA CUENTA' : 'PEDIR LA CUENTA'}
           </button>
         )}
       </footer>

@@ -18,3 +18,11 @@
   font-display: swap;
   src: url('/fuentes/SpaceGrotesk.woff2') format('woff2');
 }
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url('/fuentes/JetBrainsMono.woff2') format('woff2');
+}

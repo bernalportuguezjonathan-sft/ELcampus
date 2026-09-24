@@ -10,7 +10,7 @@ import Fondo from './Fondo'
 
 // Cuántas mesas tiene el local. Cuando el negocio ponga o quite mesas,
 // se cambia este número.
-const MESAS_DEL_LOCAL = 12
+const MESAS_DEL_LOCAL = 16
 
 export default function Mesas() {
   const { sesion, salir } = useSesion()

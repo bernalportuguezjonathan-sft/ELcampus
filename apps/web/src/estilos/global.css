@@ -12,6 +12,11 @@
   --neon-calido: #ffaa00;
   --neon-brasa: #ff5e00;
   --neon-suave: #ffe87a;
+
+  /* Café mate para las tarjetas de mesa: totalmente opaco, para que el
+     brasero del fondo no se coma los números ni el estado. */
+  --mesa-fondo: #2a2018;
+  --mesa-borde: #3d3024;
   --neon-glow: rgba(255, 199, 0, 0.24);
   --llama: #ff7a1a;
   --salsa: #e04b3a;

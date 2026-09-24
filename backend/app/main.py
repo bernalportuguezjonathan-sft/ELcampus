@@ -28,6 +28,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def control_de_cache(request: Request, call_next):
+    """Que una versión nueva llegue sin que nadie tenga que recargar a la fuerza.
+
+    Los archivos de /assets llevan un hash en el nombre: cambian de nombre
+    cuando cambia su contenido, así que se pueden guardar para siempre. El
+    index.html no, y es el que dice cuáles assets cargar — si el navegador
+    se lo queda, la caja y los celulares siguen corriendo la versión vieja
+    después de publicar un arreglo.
+    """
+    respuesta = await call_next(request)
+    ruta = request.url.path
+    if ruta.startswith("/assets/") or ruta.startswith("/fuentes/"):
+        respuesta.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    elif not ruta.startswith("/api"):
+        respuesta.headers["Cache-Control"] = "no-cache"
+    return respuesta
+
+
 api = APIRouter(prefix="/api")
 api.include_router(auth.router)
 api.include_router(productos.router)
