@@ -1,7 +1,10 @@
 import jwt
-from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as ErrorDeStarlette
 
 from .auth import leer_token
 from .config import WEB_DIST
@@ -71,3 +74,17 @@ async def eventos(websocket: WebSocket, token: str = ""):
 # un solo puerto. La caja abre localhost y los celulares la IP del PC.
 if WEB_DIST.is_dir():
     app.mount("/", StaticFiles(directory=WEB_DIST, html=True), name="web")
+
+    @app.exception_handler(ErrorDeStarlette)
+    async def entregar_index_en_rutas_de_react(request: Request, exc: ErrorDeStarlette):
+        """React Router maneja /login, /caja, /mesas, etc. en el navegador,
+        pero StaticFiles solo conoce archivos reales: si alguien recarga la
+        página o abre un acceso directo a esas rutas, sin esto el servidor
+        respondería 404 en vez de entregar la app.
+        """
+        si_no_es_de_la_api = not request.url.path.startswith("/api")
+        if exc.status_code == 404 and si_no_es_de_la_api:
+            return FileResponse(WEB_DIST / "index.html")
+        # Cualquier otro caso (401, 403, un 404 real de /api) sigue el
+        # comportamiento normal de FastAPI en vez de tumbar la respuesta.
+        return await http_exception_handler(request, exc)
