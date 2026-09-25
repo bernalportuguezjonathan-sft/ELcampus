@@ -111,6 +111,12 @@ class Plato(Base):
     tipo: Mapped[TipoPlato] = mapped_column(SAEnum(TipoPlato))
     activo_desde: Mapped[date | None] = mapped_column(default=None)
     activo_hasta: Mapped[date | None] = mapped_column(default=None)
+    # Qué trae el plato: "Arroz, patacón y ensalada". El mesero se lo dice
+    # al cliente sin tener que acordarse.
+    descripcion: Mapped[str | None] = mapped_column(String(300), default=None)
+    # Platos que no tienen un precio único, como la picada: "desde $40.000".
+    # Aquí `precio` es el mínimo y quien toma el pedido escribe el real.
+    precio_libre: Mapped[bool] = mapped_column(default=False)
 
 
 class Venta(Base):
@@ -183,10 +189,20 @@ class PedidoMesa(Base):
     detalles: Mapped[list["DetallePedidoMesa"]] = relationship(
         back_populates="pedido", cascade="all, delete-orphan"
     )
+    mesero: Mapped["Usuario"] = relationship(lazy="joined")
 
     @property
     def total(self) -> float:
         return float(round(sum(detalle.subtotal for detalle in self.detalles)))
+
+    @property
+    def mesero_nombre(self) -> str:
+        """Quién está atendiendo la mesa.
+
+        La caja y el administrador necesitan saber a quién preguntarle por
+        una mesa, no un número de usuario.
+        """
+        return self.mesero.nombre if self.mesero else "—"
 
 
 class DetallePedidoMesa(Base):
@@ -198,6 +214,11 @@ class DetallePedidoMesa(Base):
     plato_id: Mapped[int | None] = mapped_column(ForeignKey("platos.id"), default=None)
     cantidad: Mapped[float]
     notas: Mapped[str | None] = mapped_column(default=None)
+    # El precio que tenía la cosa cuando se pidió. Se guarda a propósito:
+    # si el administrador sube un precio a mitad de servicio, la mesa que ya
+    # estaba abierta sigue costando lo que le dijeron al cliente. Las ventas
+    # ya hacían esto; las mesas abiertas no, y era plata que se movía sola.
+    precio_fijado: Mapped[float | None] = mapped_column(default=None)
 
     pedido: Mapped["PedidoMesa"] = relationship(back_populates="detalles")
     producto: Mapped["Producto | None"] = relationship()
@@ -209,6 +230,9 @@ class DetallePedidoMesa(Base):
 
     @property
     def precio_unitario(self) -> float:
+        if self.precio_fijado is not None:
+            return self.precio_fijado
+        # Filas viejas, de antes de que se guardara el precio.
         if self.producto is not None:
             return self.producto.precio_de_venta
         return self.plato.precio

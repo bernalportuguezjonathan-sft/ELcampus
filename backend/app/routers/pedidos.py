@@ -92,6 +92,8 @@ def _sumar_item(
     Pedir lo mismo otra vez suma cantidad, salvo que lleve una nota distinta:
     "sin ensalada" y "con ensalada" son dos líneas distintas.
     """
+    precio = _precio_al_pedir(db, datos)
+
     existente = None
     if datos.notas is None:
         for detalle in pedido.detalles:
@@ -99,6 +101,10 @@ def _sumar_item(
                 detalle.producto_id == datos.producto_id
                 and detalle.plato_id == datos.plato_id
                 and detalle.notas is None
+                # El precio entra en la comparación: dos picadas a precios
+                # distintos son dos líneas, y una ronda pedida después de un
+                # cambio de precio no se mezcla con la anterior.
+                and detalle.precio_unitario == precio
             )
             if mismo:
                 existente = detalle
@@ -108,11 +114,6 @@ def _sumar_item(
         existente.cantidad += datos.cantidad
         return
 
-    if datos.producto_id is not None and db.get(models.Producto, datos.producto_id) is None:
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
-    if datos.plato_id is not None and db.get(models.Plato, datos.plato_id) is None:
-        raise HTTPException(status_code=404, detail="Plato no encontrado")
-
     db.add(
         models.DetallePedidoMesa(
             pedido_id=pedido.id,
@@ -120,8 +121,46 @@ def _sumar_item(
             plato_id=datos.plato_id,
             cantidad=datos.cantidad,
             notas=datos.notas,
+            precio_fijado=precio,
         )
     )
+
+
+def _precio_al_pedir(db: Session, datos: schemas.ItemPedidoCrear) -> float:
+    """El precio que queda grabado en la línea del pedido.
+
+    Se congela aquí para que un cambio de precio a mitad de servicio no le
+    mueva la cuenta a una mesa que ya estaba abierta. En los platos de
+    precio libre manda lo que escribió quien tomó el pedido, con el precio
+    del catálogo como piso.
+    """
+    if datos.producto_id is not None:
+        producto = db.get(models.Producto, datos.producto_id)
+        if producto is None:
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
+        return float(producto.precio_de_venta)
+
+    plato = db.get(models.Plato, datos.plato_id)
+    if plato is None:
+        raise HTTPException(status_code=404, detail="Plato no encontrado")
+
+    if not plato.precio_libre:
+        return float(plato.precio)
+
+    if datos.precio_unitario is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{plato.nombre} se cobra por precio libre: falta decir cuánto vale.",
+        )
+    if datos.precio_unitario < plato.precio:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"{plato.nombre} no puede ir por debajo de "
+                f"${plato.precio:,.0f}".replace(",", ".")
+            ),
+        )
+    return float(datos.precio_unitario)
 
 
 @router.get("/mesa/{numero}", response_model=schemas.PedidoLeer | None)
@@ -165,10 +204,7 @@ async def enviar_pedido(
     # llega a abrirse: es preferible que el mesero reintente a que quede una
     # mesa ocupada con medio pedido dentro.
     for item in datos.items:
-        if item.producto_id is not None and db.get(models.Producto, item.producto_id) is None:
-            raise HTTPException(status_code=404, detail="Producto no encontrado")
-        if item.plato_id is not None and db.get(models.Plato, item.plato_id) is None:
-            raise HTTPException(status_code=404, detail="Plato no encontrado")
+        _precio_al_pedir(db, item)
 
     pedido = db.scalar(
         select(models.PedidoMesa).where(

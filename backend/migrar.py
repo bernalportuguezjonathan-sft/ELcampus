@@ -46,6 +46,27 @@ def main() -> int:
             )
             hechos.append("índice único de nombre creado")
 
+        # --- platos: qué trae y si el precio lo pone quien toma el pedido ---
+        if "descripcion" not in columnas(con, "platos"):
+            con.execute(text("ALTER TABLE platos ADD COLUMN descripcion VARCHAR(300)"))
+            hechos.append("platos.descripcion agregada")
+
+        if "precio_libre" not in columnas(con, "platos"):
+            con.execute(
+                text(
+                    "ALTER TABLE platos ADD COLUMN precio_libre BOOLEAN "
+                    "NOT NULL DEFAULT 0"
+                )
+            )
+            hechos.append("platos.precio_libre agregada")
+
+        # --- el precio de un ítem de mesa se congela al pedirlo ---
+        if "precio_fijado" not in columnas(con, "detalle_pedido_mesa"):
+            con.execute(
+                text("ALTER TABLE detalle_pedido_mesa ADD COLUMN precio_fijado FLOAT")
+            )
+            hechos.append("detalle_pedido_mesa.precio_fijado agregada")
+
     if hechos:
         for h in hechos:
             print(f"  · {h}")

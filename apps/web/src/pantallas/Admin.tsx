@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { api } from '../api/cliente'
-import type { Comparacion, Producto, ResumenDia } from '../api/tipos'
-import { cantidad as formatoCantidad, plata } from '../formato'
+import type { Comparacion, Pedido, Producto, ResumenDia } from '../api/tipos'
+import { cantidad as formatoCantidad, hora, plata } from '../formato'
 import { useSesion } from '../sesion'
 import Usuarios from './Usuarios'
 import Fondo from './Fondo'
@@ -14,6 +14,7 @@ function Resumen() {
   const [resumen, setResumen] = useState<ResumenDia | null>(null)
   const [comparacion, setComparacion] = useState<Comparacion | null>(null)
   const [alertas, setAlertas] = useState<Producto[]>([])
+  const [mesas, setMesas] = useState<Pedido[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -21,11 +22,20 @@ function Resumen() {
       api.get<ResumenDia>('/reportes/dia'),
       api.get<Comparacion>('/reportes/comparar'),
       api.get<Producto[]>('/inventario/alertas'),
+      api.get<Pedido[]>('/pedidos'),
     ])
-      .then(([r, c, a]) => {
+      .then(([r, c, a, m]) => {
         setResumen(r)
         setComparacion(c)
         setAlertas(a)
+        // Las que ya pidieron la cuenta van de primeras: son las que están
+        // por pagar. El resto, por número de mesa.
+        setMesas(
+          [...m].sort((x, y) => {
+            const urgencia = (p: Pedido) => (p.estado === 'cuenta_pedida' ? 0 : 1)
+            return urgencia(x) - urgencia(y) || x.mesa - y.mesa
+          }),
+        )
       })
       .catch((fallo) =>
         setError(fallo instanceof Error ? fallo.message : 'No se pudieron cargar los datos.'),
@@ -70,6 +80,34 @@ function Resumen() {
           </div>
         </div>
       </section>
+
+      {mesas.length > 0 && (
+        <section className="tarjeta">
+          <h2 className="tarjeta-titulo">
+            Qué hay en el salón
+            <span className="conteo">{mesas.length}</span>
+          </h2>
+          {mesas.map((pedido) => (
+            <div key={pedido.id} className="fila-lista">
+              <span>
+                Mesa {pedido.mesa}
+                <span className="atiende"> · {pedido.mesero_nombre}</span>
+                {pedido.estado === 'cuenta_pedida' && (
+                  <span className="marca-cuenta"> pidió la cuenta</span>
+                )}
+                <small className="valor-tenue">
+                  {' · '}
+                  {pedido.detalles.length}{' '}
+                  {pedido.detalles.length === 1 ? 'producto' : 'productos'}
+                  {' · desde '}
+                  {hora(pedido.hora_apertura)}
+                </small>
+              </span>
+              <span className="valor-tenue num">{plata(pedido.total)}</span>
+            </div>
+          ))}
+        </section>
+      )}
 
       {alertas.length > 0 && (
         <section className="tarjeta">

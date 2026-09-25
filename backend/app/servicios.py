@@ -17,18 +17,27 @@ def redondear_pesos(valor: float) -> float:
     return float(round(valor))
 
 
-def consolidar(items) -> dict[tuple[str, int], float]:
-    """Escanear el mismo producto dos veces suma cantidad en una sola línea."""
-    consolidados: dict[tuple[str, int], float] = {}
+def consolidar(items) -> dict[tuple[str, int, float | None], float]:
+    """Escanear el mismo producto dos veces suma cantidad en una sola línea.
+
+    El precio entra en la clave: dos picadas de precio libre a $40.000 y a
+    $70.000 son dos líneas, no una de $110.000 mal promediada. Los ítems que
+    no traen precio propio (una venta de mostrador) van con None y toman el
+    del catálogo.
+    """
+    consolidados: dict[tuple[str, int, float | None], float] = {}
     for item in items:
-        clave = ("producto", item.producto_id) if item.producto_id else ("plato", item.plato_id)
+        tipo, id_ = (
+            ("producto", item.producto_id) if item.producto_id else ("plato", item.plato_id)
+        )
+        clave = (tipo, id_, getattr(item, "precio_unitario", None))
         consolidados[clave] = consolidados.get(clave, 0.0) + item.cantidad
     return consolidados
 
 
-def _resolver(db: Session, consolidados: dict[tuple[str, int], float]) -> list[dict]:
+def _resolver(db: Session, consolidados: dict[tuple[str, int, float | None], float]) -> list[dict]:
     lineas = []
-    for (tipo, id_), cantidad in consolidados.items():
+    for (tipo, id_, precio_traido), cantidad in consolidados.items():
         if tipo == "producto":
             producto = db.get(models.Producto, id_)
             if producto is None:
@@ -40,6 +49,11 @@ def _resolver(db: Session, consolidados: dict[tuple[str, int], float]) -> list[d
                 raise HTTPException(status_code=404, detail=f"Plato {id_} no encontrado")
             producto = None
             precio_unitario = plato.precio
+
+        # Lo que venía de una mesa ya trae su precio congelado: se cobra eso,
+        # no lo que diga el catálogo hoy.
+        if precio_traido is not None:
+            precio_unitario = precio_traido
 
         lineas.append(
             {

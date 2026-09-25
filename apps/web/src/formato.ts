@@ -13,3 +13,12 @@ export const cantidad = (valor: number) =>
 
 export const hora = (iso: string) =>
   new Date(iso).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' })
+
+const agrupado = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 })
+
+/** 12000 → "12.000". Sin el signo de pesos: para campos donde se escribe. */
+export const miles = (valor: number) => agrupado.format(valor)
+
+/** Deja solo los dígitos de lo que la persona alcanzó a escribir.
+ *  Así el campo aguanta que peguen "$ 12.000" o que se les escape una letra. */
+export const soloDigitos = (texto: string) => texto.replace(/\D/g, '').slice(0, 12)

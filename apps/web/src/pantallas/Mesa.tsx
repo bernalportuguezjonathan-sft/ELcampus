@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { api } from '../api/cliente'
-import type { Pedido, Plato, Producto } from '../api/tipos'
-import { cantidad as formatoCantidad, hora, plata } from '../formato'
+import type { Pedido, Plato } from '../api/tipos'
+import { cantidad as formatoCantidad, hora, miles, plata, soloDigitos } from '../formato'
 import Fondo from './Fondo'
 
 /** Una línea de lo que el mesero va anotando. Todavía no existe en el
@@ -15,6 +15,8 @@ interface Linea {
   nombre: string
   precio: number
   cantidad: number
+  /** Verdadero si el mesero escribió el precio (picada y similares). */
+  precioLibre?: boolean
 }
 
 /** El borrador se guarda por mesa. Si al mesero se le bloquea la pantalla o
@@ -46,9 +48,10 @@ export default function Mesa() {
   const [pedido, setPedido] = useState<Pedido | null>(null)
   const [cargando, setCargando] = useState(true)
   const [platos, setPlatos] = useState<Plato[]>([])
-  const [productos, setProductos] = useState<Producto[]>([])
   const [borrador, setBorrador] = useState<Linea[]>(() => leerBorrador(numero))
   const [eligiendo, setEligiendo] = useState(false)
+  const [poniendoPrecio, setPoniendoPrecio] = useState<Plato | null>(null)
+  const [precioEscrito, setPrecioEscrito] = useState('')
   const [confirmando, setConfirmando] = useState(false)
   const [viendoCuenta, setViendoCuenta] = useState(false)
   const [subiendo, setSubiendo] = useState(false)
@@ -69,7 +72,6 @@ export default function Mesa() {
   useEffect(() => {
     void cargar()
     void api.get<Plato[]>('/platos').then(setPlatos).catch(() => undefined)
-    void api.get<Producto[]>('/productos').then(setProductos).catch(() => undefined)
   }, [cargar])
 
   useEffect(() => {
@@ -104,14 +106,54 @@ export default function Mesa() {
   /** Tocar un producto lo selecciona y ya. Volver a tocarlo no suma nada:
    *  la cantidad se maneja solo con los botones + y −, que es donde el
    *  mesero puede ver lo que está haciendo antes de subirlo. */
-  function anotar(item: { producto_id?: number; plato_id?: number; nombre: string; precio: number }) {
-    const clave = item.plato_id ? `plato-${item.plato_id}` : `producto-${item.producto_id}`
+  function anotar(item: {
+    producto_id?: number
+    plato_id?: number
+    nombre: string
+    precio: number
+    precioLibre?: boolean
+  }) {
+    // Cada picada tiene su propio precio, así que cada una es su propia
+    // línea: no se juntan como sí se juntan dos cervezas.
+    const clave = item.precioLibre
+      ? `plato-${item.plato_id}-${item.precio}`
+      : item.plato_id
+        ? `plato-${item.plato_id}`
+        : `producto-${item.producto_id}`
+
     setBorrador((lineas) =>
       lineas.some((l) => l.clave === clave)
         ? lineas
         : [...lineas, { ...item, clave, cantidad: 1 }],
     )
     setListo(null)
+  }
+
+  /** Al elegir un plato: si tiene precio libre, primero se pregunta cuánto. */
+  function elegirPlato(plato: Plato) {
+    if (plato.precio_libre) {
+      setPoniendoPrecio(plato)
+      setPrecioEscrito('')
+      return
+    }
+    anotar({ plato_id: plato.id, nombre: plato.nombre, precio: plato.precio })
+  }
+
+  function confirmarPrecioLibre() {
+    if (!poniendoPrecio) return
+    const valor = Number(precioEscrito || 0)
+    if (valor < poniendoPrecio.precio) {
+      setError(`${poniendoPrecio.nombre} no baja de ${plata(poniendoPrecio.precio)}.`)
+      return
+    }
+    anotar({
+      plato_id: poniendoPrecio.id,
+      nombre: poniendoPrecio.nombre,
+      precio: valor,
+      precioLibre: true,
+    })
+    setPoniendoPrecio(null)
+    setPrecioEscrito('')
   }
 
   function cambiarCantidad(clave: string, nueva: number) {
@@ -132,6 +174,7 @@ export default function Mesa() {
           producto_id: l.producto_id ?? null,
           plato_id: l.plato_id ?? null,
           cantidad: l.cantidad,
+          precio_unitario: l.precioLibre ? l.precio : null,
         })),
       })
       setPedido(resultado)
@@ -267,7 +310,7 @@ export default function Mesa() {
           </div>
           <div className="elector-lista">
             {platos.map((plato) => {
-              const lleva = yaElegido.get(`plato-${plato.id}`)
+              const lleva = plato.precio_libre ? undefined : yaElegido.get(`plato-${plato.id}`)
               return (
                 <button
                   key={`plato-${plato.id}`}
@@ -275,38 +318,62 @@ export default function Mesa() {
                     lleva ? 'elegido' : ''
                   }`}
                   aria-pressed={Boolean(lleva)}
-                  onClick={() =>
-                    anotar({ plato_id: plato.id, nombre: plato.nombre, precio: plato.precio })
-                  }
+                  onClick={() => elegirPlato(plato)}
                 >
                   <b>{plato.nombre}</b>
                   <small className="num">{plata(plato.precio)}</small>
-                  {plato.tipo === 'especial' && <span className="marca-especial">Especial</span>}
                   {lleva && <span className="insignia num">{formatoCantidad(lleva)}</span>}
                 </button>
               )
             })}
-            {productos.map((producto) => {
-              const lleva = yaElegido.get(`producto-${producto.id}`)
-              return (
-                <button
-                  key={`producto-${producto.id}`}
-                  className={`tarjeta-item ${lleva ? 'elegido' : ''}`}
-                  aria-pressed={Boolean(lleva)}
-                  onClick={() =>
-                    anotar({
-                      producto_id: producto.id,
-                      nombre: producto.nombre,
-                      precio: producto.precio_de_venta,
-                    })
-                  }
-                >
-                  <b>{producto.nombre}</b>
-                  <small className="num">{plata(producto.precio_de_venta)}</small>
-                  {lleva && <span className="insignia num">{formatoCantidad(lleva)}</span>}
-                </button>
-              )
-            })}
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------- cuánto vale esta picada */}
+      {poniendoPrecio && (
+        <div className="velo" role="dialog" aria-modal="true" aria-labelledby="titulo-precio">
+          <div className="confirmacion">
+            <h2 id="titulo-precio" className="confirmacion-titulo">
+              ¿Cuánto vale esta {poniendoPrecio.nombre.toLowerCase()}?
+            </h2>
+            <p className="confirmacion-nota">
+              {poniendoPrecio.descripcion ?? `Mínimo ${plata(poniendoPrecio.precio)}.`}
+            </p>
+
+            <span className="campo-caja">
+              <i className="campo-icono" aria-hidden="true">
+                $
+              </i>
+              <input
+                className="num"
+                value={precioEscrito ? miles(Number(precioEscrito)) : ''}
+                onChange={(e) => setPrecioEscrito(soloDigitos(e.target.value))}
+                onKeyDown={(e) => e.key === 'Enter' && confirmarPrecioLibre()}
+                inputMode="numeric"
+                placeholder={String(poniendoPrecio.precio)}
+                autoFocus
+              />
+            </span>
+
+            <div className="confirmacion-botones">
+              <button
+                className="btn-secundario"
+                onClick={() => {
+                  setPoniendoPrecio(null)
+                  setPrecioEscrito('')
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                className="btn-primario"
+                onClick={confirmarPrecioLibre}
+                disabled={!precioEscrito}
+              >
+                Agregar
+              </button>
+            </div>
           </div>
         </div>
       )}

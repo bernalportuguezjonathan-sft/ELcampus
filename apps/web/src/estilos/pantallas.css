@@ -609,11 +609,14 @@ td.vacio {
   border-radius: 2px;
 }
 
+/* Toda mesa abierta aparece aquí desde que el mesero sube el pedido: el
+   vendedor sabe qué hay en el salón sin tener que preguntar. Las que ya
+   pidieron la cuenta se marcan en naranja — esas tienen gente esperando. */
 .mesa-esperando {
-  border: 1px solid var(--llama);
-  border-left-width: 3px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--humo-tenue);
   border-radius: 3px;
-  background: rgba(255, 122, 26, 0.09);
+  background: var(--surface-2);
   padding: 11px 13px;
   display: flex;
   flex-direction: column;
@@ -621,13 +624,56 @@ td.vacio {
   text-align: left;
   color: var(--espuma);
 }
+.mesa-esperando:hover {
+  border-left-color: var(--neon);
+}
 .mesa-esperando b {
-  color: var(--llama);
+  color: var(--espuma);
   font-size: 14px;
 }
 .mesa-esperando small {
   color: var(--humo);
   font-size: 12px;
+}
+/* La mesa que el vendedor tiene abierta. Se marca para que no quede duda
+   de cuál está cobrando — tocarla otra vez la suelta. */
+.mesa-esperando.elegida {
+  border-left-color: var(--neon);
+  border-left-width: 5px;
+  background: color-mix(in srgb, var(--neon) 14%, var(--surface-2));
+}
+.mesa-esperando.elegida b::after {
+  content: ' ·  tocando otra vez la sueltas';
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--humo);
+}
+
+.mesa-esperando.urgente {
+  border-color: var(--llama);
+  border-left-color: var(--llama);
+  background: color-mix(in srgb, var(--llama) 12%, var(--surface-2));
+}
+/* Quién atiende la mesa. Va en el acento para que se lea de un vistazo
+   desde el mostrador, pero sin competir con el número de mesa. */
+/* Cuando lo recibido no alcanza. En rojo porque es un alto, no un dato. */
+.vuelto .fila.falta {
+  color: var(--salsa);
+  font-weight: 700;
+}
+
+.atiende {
+  color: var(--neon);
+  font-weight: 600;
+}
+
+.marca-cuenta {
+  color: var(--llama);
+  font-weight: 700;
+}
+
+.mesa-esperando.urgente b {
+  color: var(--llama);
 }
 
 .caja-pie {
@@ -834,6 +880,13 @@ td.vacio {
 .tarjeta-item.especial {
   border-color: rgba(255, 199, 0, 0.45);
 }
+/* Qué trae el plato, para que el mesero se lo diga al cliente. */
+.trae {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--humo-tenue);
+}
+
 .marca-especial {
   align-self: flex-start;
   font-size: 9.5px;

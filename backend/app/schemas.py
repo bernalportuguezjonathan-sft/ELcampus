@@ -100,6 +100,9 @@ class PlatoBase(BaseModel):
     tipo: TipoPlato = TipoPlato.fijo
     activo_desde: date | None = None
     activo_hasta: date | None = None
+    descripcion: str | None = None
+    # Con precio libre, `precio` es el mínimo sugerido.
+    precio_libre: bool = False
 
 
 class PlatoCrear(PlatoBase):
@@ -111,12 +114,26 @@ class PlatoActualizar(BaseModel):
     precio: float | None = None
     activo_desde: date | None = None
     activo_hasta: date | None = None
+    descripcion: str | None = None
+    precio_libre: bool | None = None
 
 
 class PlatoLeer(PlatoBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+
+
+class MenuDelFinDeSemana(BaseModel):
+    """Los especiales que salen este fin de semana, y hasta cuándo.
+
+    Lo que no venga en `platos` se saca del menú. Los fijos no entran aquí:
+    esos van siempre.
+    """
+
+    desde: date
+    hasta: date
+    platos: list[int] = []
 
 
 # --------------------------------------------------------------- ventas
@@ -201,6 +218,9 @@ class ItemPedidoCrear(BaseModel):
     plato_id: int | None = None
     cantidad: float = 1
     notas: str | None = None
+    # Solo para platos de precio libre, como la picada. En los demás se
+    # ignora: el precio lo pone el catálogo, no quien toma el pedido.
+    precio_unitario: float | None = None
 
     @model_validator(mode="after")
     def validar(self):
@@ -235,6 +255,7 @@ class PedidoLeer(BaseModel):
     mesa: int
     estado: EstadoPedidoMesa
     mesero_id: int
+    mesero_nombre: str
     hora_apertura: datetime
     hora_cuenta_pedida: datetime | None
     venta_id: int | None

@@ -7,6 +7,8 @@ venv/
 *.db-shm
 .secreto
 .codigo-admin
+firebase-credenciales.json
+*firebase-adminsdk*.json
 .env
 node_modules/
 dist/

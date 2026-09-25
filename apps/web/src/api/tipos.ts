@@ -40,6 +40,9 @@ export interface Plato {
   tipo: 'fijo' | 'especial'
   activo_desde: string | null
   activo_hasta: string | null
+  descripcion: string | null
+  /** Platos sin precio único, como la picada: `precio` es el mínimo. */
+  precio_libre: boolean
 }
 
 export interface DetalleVenta {
@@ -74,6 +77,7 @@ export interface Pedido {
   mesa: number
   estado: EstadoPedido
   mesero_id: number
+  mesero_nombre: string
   hora_apertura: string
   hora_cuenta_pedida: string | null
   venta_id: number | null

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 're
 import { api } from '../api/cliente'
 import { useEventos } from '../api/eventos'
 import type { MetodoPago, Pedido, Producto, Venta } from '../api/tipos'
-import { cantidad as formatoCantidad, hora, plata } from '../formato'
+import { cantidad as formatoCantidad, hora, miles, plata, soloDigitos } from '../formato'
 import { useSesion } from '../sesion'
 import Fondo from './Fondo'
 
@@ -45,12 +45,23 @@ export default function Caja() {
     ? cobrandoMesa.total
     : Math.round(lineas.reduce((suma, l) => suma + l.cantidad * l.precio_unitario, 0))
 
-  const vuelto = metodoPago === 'efectivo' && recibido ? Number(recibido) - total : null
+  // `recibido` guarda solo dígitos; en pantalla se muestra con puntos de mil.
+  const recibidoEnPesos = recibido ? Number(recibido) : 0
+  const vuelto = metodoPago === 'efectivo' && recibido ? recibidoEnPesos - total : null
 
   const cargarMesas = useCallback(async () => {
     try {
       const pedidos = await api.get<Pedido[]>('/pedidos')
-      setMesasEsperando(pedidos.filter((p) => p.estado === 'cuenta_pedida'))
+      // Todas las mesas abiertas, no solo las que pidieron la cuenta: el
+      // vendedor ve lo que lleva cada mesa desde que el mesero sube el
+      // primer pedido. Las que ya pidieron la cuenta van de primeras,
+      // porque son las que tienen a alguien esperando para pagar.
+      setMesasEsperando(
+        [...pedidos].sort((a, b) => {
+          const urgencia = (p: Pedido) => (p.estado === 'cuenta_pedida' ? 0 : 1)
+          return urgencia(a) - urgencia(b) || a.mesa - b.mesa
+        }),
+      )
     } catch {
       /* si falla, el aviso de conexión ya lo dice */
     }
@@ -101,11 +112,6 @@ export default function Caja() {
     setCodigo('')
     if (!leido) return
 
-    if (cobrandoMesa) {
-      setError('Estás cobrando una mesa. Termina o cancela antes de escanear.')
-      return
-    }
-
     try {
       const producto = await api.get<Producto>(
         `/productos/codigo/${encodeURIComponent(leido)}`,
@@ -115,6 +121,14 @@ export default function Caja() {
         setKilos('')
         return
       }
+
+      // Con una mesa elegida, lo que se escanea va a esa mesa. Pasa seguido:
+      // el cliente está sentado y de paso le pide algo al vendedor.
+      if (cobrandoMesa) {
+        await sumarALaMesa(producto.id, 1)
+        return
+      }
+
       agregar(
         {
           clave: `producto:${producto.id}`,
@@ -126,6 +140,22 @@ export default function Caja() {
       )
     } catch (fallo) {
       setError(fallo instanceof Error ? fallo.message : 'No se pudo leer ese código.')
+    }
+  }
+
+  /** Mete un producto en la mesa que el vendedor tiene abierta. */
+  async function sumarALaMesa(productoId: number, cuanto: number) {
+    if (!cobrandoMesa) return
+    try {
+      const actualizado = await api.post<Pedido>('/pedidos/enviar', {
+        mesa: cobrandoMesa.mesa,
+        items: [{ producto_id: productoId, plato_id: null, cantidad: cuanto }],
+      })
+      setCobrandoMesa(actualizado)
+      void cargarMesas()
+      setError(null)
+    } catch (fallo) {
+      setError(fallo instanceof Error ? fallo.message : 'No se pudo agregar a la mesa.')
     }
   }
 
@@ -141,6 +171,12 @@ export default function Caja() {
       setError('Escribe cuántos kilos, por ejemplo 0,4')
       return
     }
+    if (cobrandoMesa) {
+      void sumarALaMesa(pesando.id, kg)
+      setPesando(null)
+      return
+    }
+
     agregar(
       {
         clave: `producto:${pesando.id}`,
@@ -283,9 +319,10 @@ export default function Caja() {
 
           {cobrandoMesa && (
             <p className="aviso aviso-atencion">
-              Cobrando la mesa {cobrandoMesa.mesa}.{' '}
-              <button className="btn-peligro" onClick={() => setCobrandoMesa(null)}>
-                Cancelar
+              Mesa {cobrandoMesa.mesa} · {cobrandoMesa.mesero_nombre}. Lo que escanees se
+              le agrega a esta mesa.{' '}
+              <button className="btn-peligro" onClick={limpiar}>
+                Soltar la mesa
               </button>
             </p>
           )}
@@ -343,8 +380,8 @@ export default function Caja() {
                 <span>Recibido</span>
                 <input
                   className="campo-recibido num"
-                  value={recibido}
-                  onChange={(e) => setRecibido(e.target.value)}
+                  value={recibido ? miles(recibidoEnPesos) : ''}
+                  onChange={(e) => setRecibido(soloDigitos(e.target.value))}
                   inputMode="numeric"
                   placeholder="0"
                 />
@@ -353,6 +390,12 @@ export default function Caja() {
                 <div className="fila destacada">
                   <span>Vuelto</span>
                   <span className="num">{plata(vuelto)}</span>
+                </div>
+              )}
+              {vuelto !== null && vuelto < 0 && (
+                <div className="fila falta">
+                  <span>Falta</span>
+                  <span className="num">{plata(-vuelto)}</span>
                 </div>
               )}
             </div>
@@ -366,22 +409,48 @@ export default function Caja() {
             COBRAR <small>F12</small>
           </button>
 
-          {mesasEsperando.map((pedido) => (
-            <button
-              key={pedido.id}
-              className="mesa-esperando"
-              onClick={() => {
-                limpiar()
-                setCobrandoMesa(pedido)
-              }}
-            >
-              <b>Mesa {pedido.mesa} pidió la cuenta</b>
-              <small className="num">
-                {pedido.detalles.length} productos · {plata(pedido.total)}
-                {pedido.hora_cuenta_pedida && ` · ${hora(pedido.hora_cuenta_pedida)}`}
-              </small>
-            </button>
-          ))}
+          {mesasEsperando.length > 0 && (
+            <span className="etiqueta">
+              {mesasEsperando.length === 1 ? 'Mesa abierta' : 'Mesas abiertas'}
+            </span>
+          )}
+
+          {mesasEsperando.map((pedido) => {
+            const pidioCuenta = pedido.estado === 'cuenta_pedida'
+            return (
+              <button
+                key={pedido.id}
+                className={`mesa-esperando ${pidioCuenta ? 'urgente' : ''} ${
+                  cobrandoMesa?.id === pedido.id ? 'elegida' : ''
+                }`}
+                aria-pressed={cobrandoMesa?.id === pedido.id}
+                onClick={() => {
+                  // Volver a tocarla la suelta. Si el vendedor se equivocó
+                  // de mesa, sale de ahí con el mismo dedo con que entró.
+                  if (cobrandoMesa?.id === pedido.id) {
+                    limpiar()
+                    return
+                  }
+                  limpiar()
+                  setCobrandoMesa(pedido)
+                }}
+              >
+                <b>
+                  Mesa {pedido.mesa}
+                  <span className="atiende"> · {pedido.mesero_nombre}</span>
+                  {pidioCuenta && ' · pidió la cuenta'}
+                </b>
+                <small className="num">
+                  {pedido.detalles.length}{' '}
+                  {pedido.detalles.length === 1 ? 'producto' : 'productos'} ·{' '}
+                  {plata(pedido.total)}
+                  {pidioCuenta && pedido.hora_cuenta_pedida
+                    ? ` · ${hora(pedido.hora_cuenta_pedida)}`
+                    : ` · desde ${hora(pedido.hora_apertura)}`}
+                </small>
+              </button>
+            )
+          })}
         </aside>
       </div>
 
