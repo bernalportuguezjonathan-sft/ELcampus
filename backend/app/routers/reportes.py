@@ -5,7 +5,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
-from ..auth import usuario_actual
+from ..auth import solo_admin, usuario_actual
 from ..database import get_db
 from ..servicios import redondear_pesos
 
@@ -151,3 +151,31 @@ def totales_por_dia(
         {"fecha": dia, "total": float(total), "cantidad_ventas": cantidad}
         for dia, total, cantidad in filas
     ]
+
+
+@router.get("/mesas", response_model=schemas.MesasDelDia)
+def mesas_del_dia(
+    fecha: date | None = None,
+    db: Session = Depends(get_db),
+    _: models.Usuario = Depends(solo_admin),
+):
+    """Todas las mesas que se abrieron en el día, con lo que pidió cada una.
+
+    Entran las cobradas y las que siguen abiertas: el administrador quiere
+    ver el salón del día completo, no solo lo que ya se pagó.
+    """
+    dia = fecha or date.today()
+    desde, hasta = _limites(dia)
+
+    pedidos = db.scalars(
+        select(models.PedidoMesa)
+        .where(models.PedidoMesa.hora_apertura.between(desde, hasta))
+        .order_by(models.PedidoMesa.hora_apertura)
+    ).all()
+
+    return schemas.MesasDelDia(
+        fecha=dia,
+        mesas=pedidos,
+        total=float(round(sum(p.total for p in pedidos))),
+        cuantas=len(pedidos),
+    )

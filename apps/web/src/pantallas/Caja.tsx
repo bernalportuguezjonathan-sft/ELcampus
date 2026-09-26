@@ -39,6 +39,7 @@ export default function Caja() {
   const [cobrando, setCobrando] = useState(false)
 
   const campoEscaneo = useRef<HTMLInputElement>(null)
+  const campoRecibido = useRef<HTMLInputElement>(null)
   const campoKilos = useRef<HTMLInputElement>(null)
 
   const total = cobrandoMesa
@@ -197,9 +198,27 @@ export default function Caja() {
     setMetodoPago('efectivo')
   }
 
+  // Pagando en efectivo hay que decir cuánto entregó el cliente: sin eso no
+  // hay vuelto que calcular, y cobrar a ciegas es como se descuadra la caja.
+  // Con los otros medios se cobra el valor exacto, así que no aplica.
+  const faltaRecibido = metodoPago === 'efectivo' && total > 0 && !recibido
+  const recibidoNoAlcanza =
+    metodoPago === 'efectivo' && total > 0 && Boolean(recibido) && recibidoEnPesos < total
+  const sePuedeCobrar = total > 0 && !faltaRecibido && !recibidoNoAlcanza
+
   const cobrar = useCallback(async () => {
     if (cobrando) return
     if (!cobrandoMesa && lineas.length === 0) return
+    if (faltaRecibido) {
+      setError('Escribe cuánto dinero recibiste antes de cobrar.')
+      campoRecibido.current?.focus()
+      return
+    }
+    if (recibidoNoAlcanza) {
+      setError(`Lo recibido no alcanza: faltan ${plata(total - recibidoEnPesos)}.`)
+      campoRecibido.current?.focus()
+      return
+    }
 
     setCobrando(true)
     setError(null)
@@ -226,7 +245,17 @@ export default function Caja() {
     } finally {
       setCobrando(false)
     }
-  }, [cobrando, cobrandoMesa, lineas, metodoPago, cargarMesas])
+  }, [
+    cobrando,
+    cobrandoMesa,
+    lineas,
+    metodoPago,
+    cargarMesas,
+    faltaRecibido,
+    recibidoNoAlcanza,
+    recibidoEnPesos,
+    total,
+  ])
 
   // F12 cobra sin soltar el lector ni tocar el mouse.
   useEffect(() => {
@@ -379,6 +408,7 @@ export default function Caja() {
               <label className="fila">
                 <span>Recibido</span>
                 <input
+                  ref={campoRecibido}
                   className="campo-recibido num"
                   value={recibido ? miles(recibidoEnPesos) : ''}
                   onChange={(e) => setRecibido(soloDigitos(e.target.value))}
@@ -404,10 +434,23 @@ export default function Caja() {
           <button
             className="btn-cobrar"
             onClick={() => void cobrar()}
-            disabled={cobrando || total === 0}
+            disabled={cobrando || !sePuedeCobrar}
+            title={
+              faltaRecibido
+                ? 'Escribe cuánto recibiste'
+                : recibidoNoAlcanza
+                  ? 'Lo recibido no alcanza'
+                  : undefined
+            }
           >
             COBRAR <small>F12</small>
           </button>
+
+          {faltaRecibido && (
+            <p className="aviso aviso-atencion">
+              Escribe cuánto dinero recibiste para poder cobrar.
+            </p>
+          )}
 
           {mesasEsperando.length > 0 && (
             <span className="etiqueta">

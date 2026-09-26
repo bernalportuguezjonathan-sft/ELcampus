@@ -11,6 +11,24 @@ export interface Sesion {
   rol: Rol
 }
 
+export interface MesaDelDia {
+  id: number
+  mesa: number
+  mesero_nombre: string
+  estado: EstadoPedido
+  hora_apertura: string
+  hora_cuenta_pedida: string | null
+  total: number
+  detalles: DetallePedido[]
+}
+
+export interface MesasDelDia {
+  fecha: string
+  mesas: MesaDelDia[]
+  total: number
+  cuantas: number
+}
+
 export interface Usuario {
   id: number
   nombre: string
@@ -31,6 +49,8 @@ export interface Producto {
   stock_actual: number
   categoria: string | null
   alerta_minima: number
+  /** Si el mesero lo puede pedir desde una mesa. */
+  en_carta: boolean
 }
 
 export interface Plato {

@@ -69,6 +69,8 @@ class ProductoBase(BaseModel):
     unidades_por_paquete: int = 1
     categoria: str | None = None
     alerta_minima: float = 5
+    # Si el mesero lo puede pedir desde una mesa.
+    en_carta: bool = False
 
 
 class ProductoCrear(ProductoBase):
@@ -81,6 +83,7 @@ class ProductoActualizar(BaseModel):
     precio_por_kg: float | None = None
     categoria: str | None = None
     alerta_minima: float | None = None
+    en_carta: bool | None = None
 
 
 class ProductoLeer(ProductoBase):
@@ -331,6 +334,28 @@ class ProductoVendido(BaseModel):
     nombre: str
     cantidad: float
     total: float
+
+
+class MesaDelDia(BaseModel):
+    """Una mesa que se atendió hoy, con todo lo que pidió."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    mesa: int
+    mesero_nombre: str
+    estado: EstadoPedidoMesa
+    hora_apertura: datetime
+    hora_cuenta_pedida: datetime | None
+    total: float
+    detalles: list[DetallePedidoLeer]
+
+
+class MesasDelDia(BaseModel):
+    fecha: date
+    mesas: list[MesaDelDia]
+    total: float
+    cuantas: int
 
 
 class ResumenDia(BaseModel):

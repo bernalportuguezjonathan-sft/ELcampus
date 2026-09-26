@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { api } from '../api/cliente'
-import type { Pedido, Plato } from '../api/tipos'
+import type { Pedido, Plato, Producto } from '../api/tipos'
 import { cantidad as formatoCantidad, hora, miles, plata, soloDigitos } from '../formato'
 import Fondo from './Fondo'
 
@@ -48,6 +48,7 @@ export default function Mesa() {
   const [pedido, setPedido] = useState<Pedido | null>(null)
   const [cargando, setCargando] = useState(true)
   const [platos, setPlatos] = useState<Plato[]>([])
+  const [bebidas, setBebidas] = useState<Producto[]>([])
   const [borrador, setBorrador] = useState<Linea[]>(() => leerBorrador(numero))
   const [eligiendo, setEligiendo] = useState(false)
   const [poniendoPrecio, setPoniendoPrecio] = useState<Plato | null>(null)
@@ -72,6 +73,12 @@ export default function Mesa() {
   useEffect(() => {
     void cargar()
     void api.get<Plato[]>('/platos').then(setPlatos).catch(() => undefined)
+    // Solo lo que el administrador marcó como «se pide en la mesa»: las
+    // bebidas del salón, no el mercado de entre semana.
+    void api
+      .get<Producto[]>('/productos?en_carta=true')
+      .then(setBebidas)
+      .catch(() => undefined)
   }, [cargar])
 
   useEffect(() => {
@@ -322,6 +329,28 @@ export default function Mesa() {
                 >
                   <b>{plato.nombre}</b>
                   <small className="num">{plata(plato.precio)}</small>
+                  {lleva && <span className="insignia num">{formatoCantidad(lleva)}</span>}
+                </button>
+              )
+            })}
+
+            {bebidas.map((bebida) => {
+              const lleva = yaElegido.get(`producto-${bebida.id}`)
+              return (
+                <button
+                  key={`producto-${bebida.id}`}
+                  className={`tarjeta-item ${lleva ? 'elegido' : ''}`}
+                  aria-pressed={Boolean(lleva)}
+                  onClick={() =>
+                    anotar({
+                      producto_id: bebida.id,
+                      nombre: bebida.nombre,
+                      precio: bebida.precio_de_venta,
+                    })
+                  }
+                >
+                  <b>{bebida.nombre}</b>
+                  <small className="num">{plata(bebida.precio_de_venta)}</small>
                   {lleva && <span className="insignia num">{formatoCantidad(lleva)}</span>}
                 </button>
               )

@@ -5,10 +5,12 @@ import { api } from '../api/cliente'
 import type { Comparacion, Pedido, Producto, ResumenDia } from '../api/tipos'
 import { cantidad as formatoCantidad, hora, plata } from '../formato'
 import { useSesion } from '../sesion'
+import MesasDelDia from './MesasDelDia'
+import Productos from './Productos'
 import Usuarios from './Usuarios'
 import Fondo from './Fondo'
 
-type Pestana = 'resumen' | 'usuarios'
+type Pestana = 'resumen' | 'mesas' | 'productos' | 'usuarios'
 
 function Resumen() {
   const [resumen, setResumen] = useState<ResumenDia | null>(null)
@@ -167,6 +169,18 @@ export default function Admin() {
             Resumen
           </button>
           <button
+            className={`pestana ${pestana === 'mesas' ? 'activa' : ''}`}
+            onClick={() => setPestana('mesas')}
+          >
+            Mesas del día
+          </button>
+          <button
+            className={`pestana ${pestana === 'productos' ? 'activa' : ''}`}
+            onClick={() => setPestana('productos')}
+          >
+            Productos
+          </button>
+          <button
             className={`pestana ${pestana === 'usuarios' ? 'activa' : ''}`}
             onClick={() => setPestana('usuarios')}
           >
@@ -185,7 +199,10 @@ export default function Admin() {
       </header>
 
       <div className="panel-cuerpo">
-        {pestana === 'resumen' ? <Resumen /> : <Usuarios />}
+        {pestana === 'resumen' && <Resumen />}
+        {pestana === 'mesas' && <MesasDelDia />}
+        {pestana === 'productos' && <Productos />}
+        {pestana === 'usuarios' && <Usuarios />}
       </div>
     </div>
   )

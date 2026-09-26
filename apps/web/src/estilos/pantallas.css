@@ -1099,6 +1099,225 @@ td.vacio {
   color: var(--humo);
 }
 
+/* ----------------------------------------- productos (admin) */
+.dos-columnas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+/* La casilla es el control más importante de esta pantalla: decide si el
+   mesero puede pedirlo o no. Se toca toda la fila, no solo el cuadrito. */
+.casilla {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+/* El selector lleva [type='checkbox'] a propósito: `.forma input` pone
+   width:100% más abajo en este archivo y, con la misma especificidad, ganaba
+   por orden y estiraba el cuadrito a lo ancho de la tarjeta. */
+.casilla input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+  accent-color: var(--neon);
+  flex: none;
+}
+.casilla span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Sin esto el texto no puede encogerse y se sale de la tarjeta. */
+  min-width: 0;
+}
+.casilla b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.casilla small {
+  font-size: 11px;
+  color: var(--humo-tenue);
+}
+
+.producto {
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.producto-fila {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 11px 13px;
+  text-align: left;
+  color: var(--espuma);
+}
+.producto-fila:hover {
+  background: var(--surface-2);
+}
+.producto-quien {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+.producto-quien b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.producto-quien small {
+  font-size: 11px;
+  color: var(--humo-tenue);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chip-carta {
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--neon) 55%, transparent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--neon);
+  white-space: nowrap;
+}
+.producto-precio {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.producto-editar {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding: 4px 13px 15px;
+  border-top: 1px solid var(--line-soft);
+}
+.producto-editar input {
+  width: 100%;
+}
+
+/* ------------------------------- platos que rotan cada fin de semana */
+.fechas-menu {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.plato {
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+/* Marcado = va este fin de semana. Se ve de lejos, que es lo que el
+   administrador revisa antes de darle publicar. */
+.plato.elegido {
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 7%, var(--surface-2));
+}
+.plato-fila {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+}
+.plato-marca {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+/* Igual que en .casilla: `.campo input` y `.forma input` ponen width:100%
+   más abajo en este archivo y estirarían el cuadrito. */
+.plato-marca input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--neon);
+  flex: none;
+}
+.plato-quien {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.plato-quien b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.plato-quien small {
+  font-size: 11px;
+  color: var(--neon-calido);
+}
+.plato-precio {
+  font-size: 14px;
+  color: var(--humo);
+  white-space: nowrap;
+}
+.btn-tenue {
+  background: none;
+  border: none;
+  color: var(--humo-tenue);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 2px;
+  flex: none;
+}
+.btn-tenue:hover {
+  color: var(--espuma);
+}
+.plato-editar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 2px 13px 13px;
+  border-top: 1px solid var(--line-soft);
+}
+.plato-editar .campo {
+  flex: 1;
+  min-width: 130px;
+}
+.plato-editar .btn-secundario {
+  width: auto;
+  padding: 11px 15px;
+}
+.plato-editar .btn-peligro {
+  padding: 11px 4px;
+}
+/* El alta de un plato nuevo va al pie, en una sola línea: es lo que menos
+   se usa de esta tarjeta. */
+.plato-nuevo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding-top: 15px;
+  border-top: 1px solid var(--line-soft);
+}
+.plato-nuevo .campo:first-child {
+  flex: 3;
+  min-width: 180px;
+}
+.plato-nuevo .campo {
+  flex: 1;
+  min-width: 110px;
+}
+.plato-nuevo .btn-secundario {
+  width: auto;
+  padding: 12px 20px;
+}
+
 /* ============================================================== panel */
 /* El panel del administrador vive en el PC, no en un celular: ocupa toda la
    pantalla y reparte el contenido en tarjetas que se acomodan al ancho.
@@ -1326,6 +1545,66 @@ td.vacio {
   .barra .quien {
     display: none;
   }
+}
+
+/* ------------------------------------------ mesas del día (admin) */
+/* Cada mesa se abre para ver qué pidió, sin llenar la pantalla de una vez:
+   un sábado pueden ser veinte mesas y lo que se busca suele ser una. */
+.mesa-dia {
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.mesa-dia.cobrada {
+  opacity: 0.72;
+}
+.mesa-dia-fila {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 12px 14px;
+  text-align: left;
+  color: var(--espuma);
+}
+.mesa-dia-fila:hover {
+  background: var(--surface-2);
+}
+.mesa-dia-quien {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+.mesa-dia-quien b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.mesa-dia-quien small {
+  font-size: 11.5px;
+  color: var(--humo-tenue);
+}
+.mesa-dia-total {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--neon);
+  white-space: nowrap;
+}
+.mesa-dia-detalle {
+  padding: 2px 14px 12px;
+  border-top: 1px solid var(--line-soft);
+}
+.mesa-dia-detalle .fila-lista {
+  font-size: 13.5px;
+}
+.total-de-la-mesa {
+  border-bottom: none;
+  font-family: var(--display);
+  font-size: 15px;
+  color: var(--neon);
 }
 
 /* ============================================================== admin */

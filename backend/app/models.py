@@ -86,6 +86,10 @@ class Producto(Base):
     stock_actual: Mapped[float] = mapped_column(default=0)
     categoria: Mapped[str | None] = mapped_column(String(100), default=None)
     alerta_minima: Mapped[float] = mapped_column(default=5)
+    # Si se puede pedir desde la mesa. Las bebidas sí; el mercado de entre
+    # semana no, para que el menú del mesero no se llene de cosas que nadie
+    # pide sentado.
+    en_carta: Mapped[bool] = mapped_column(default=False)
 
     __table_args__ = (
         CheckConstraint(

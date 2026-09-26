@@ -13,14 +13,22 @@ router = APIRouter(prefix="/productos", tags=["productos"])
 def listar_productos(
     buscar: str | None = None,
     categoria: str | None = None,
+    en_carta: bool | None = None,
     db: Session = Depends(get_db),
     _: models.Usuario = Depends(usuario_actual),
 ):
+    """El catálogo. Con `en_carta=true` salen solo los que se piden en mesa.
+
+    Es lo que usa el celular del mesero: las bebidas del salón sin el
+    mercado de entre semana.
+    """
     consulta = select(models.Producto).order_by(models.Producto.nombre)
     if buscar:
         consulta = consulta.where(models.Producto.nombre.ilike(f"%{buscar}%"))
     if categoria:
         consulta = consulta.where(models.Producto.categoria == categoria)
+    if en_carta is not None:
+        consulta = consulta.where(models.Producto.en_carta.is_(en_carta))
     return db.scalars(consulta).all()
 
 

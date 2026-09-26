@@ -60,6 +60,16 @@ def main() -> int:
             )
             hechos.append("platos.precio_libre agregada")
 
+        # --- qué productos se pueden pedir desde una mesa ---
+        if "en_carta" not in columnas(con, "productos"):
+            con.execute(
+                text(
+                    "ALTER TABLE productos ADD COLUMN en_carta BOOLEAN "
+                    "NOT NULL DEFAULT 0"
+                )
+            )
+            hechos.append("productos.en_carta agregada")
+
         # --- el precio de un ítem de mesa se congela al pedirlo ---
         if "precio_fijado" not in columnas(con, "detalle_pedido_mesa"):
             con.execute(
