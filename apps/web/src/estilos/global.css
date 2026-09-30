@@ -184,6 +184,37 @@ input {
   gap: 12px;
 }
 
+/* Los enlaces de la barra son botones, no texto para leer: sin el subrayado
+   que el navegador les pone solo. */
+.barra a {
+  text-decoration: none;
+}
+/* Verde lo que lleva a alguna parte, rojo lo que cierra la sesión. Se
+   distinguen por color antes que por leerlos. */
+.barra-accion {
+  background: none;
+  border: none;
+  color: var(--verde);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 3px 2px;
+}
+.barra-accion:hover {
+  color: color-mix(in srgb, var(--verde) 70%, white);
+}
+.barra-salir {
+  background: none;
+  border: none;
+  color: var(--salsa);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 3px 2px;
+  white-space: nowrap;
+}
+.barra-salir:hover {
+  color: color-mix(in srgb, var(--salsa) 70%, white);
+}
+
 .chip-ok {
   color: var(--verde);
   font-size: 12px;

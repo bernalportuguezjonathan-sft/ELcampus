@@ -74,6 +74,17 @@ export default function Login() {
         return
       }
 
+      // El saludo lo muestra el panel del administrador una sola vez, al
+      // entrar. Va en sessionStorage y no en el estado de React para que
+      // aguante el repintado y se borre solo al cerrar la pestaña.
+      if (sesion.rol === 'administrador') {
+        try {
+          sessionStorage.setItem('elcampus.saludo', sesion.nombre)
+        } catch {
+          // Si el navegador no deja guardar, simplemente no hay saludo.
+        }
+      }
+
       entrar(sesion)
       navegar(pantallaDe(sesion.rol), { replace: true })
     } catch (fallo) {

@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 from .models import (
     EstadoCierreCaja,
@@ -156,15 +156,33 @@ class ItemVenta(BaseModel):
         return self
 
 
+class PagoEntrada(BaseModel):
+    """Una parte del pago: con qué pagaron y cuánto de esa forma."""
+
+    metodo_pago: MetodoPago
+    monto: float = Field(gt=0)
+
+
 class VentaCrear(BaseModel):
     tipo: TipoCobro
     metodo_pago: MetodoPago
     mesa: int | None = None
     items: list[ItemVenta]
+    # Pago partido: mitad en efectivo y el resto por Nequi, por ejemplo. Si no
+    # viene, se entiende que todo se pagó con `metodo_pago`.
+    pagos: list[PagoEntrada] | None = None
 
 
 class VentaDesdePedido(BaseModel):
     metodo_pago: MetodoPago
+    pagos: list[PagoEntrada] | None = None
+
+
+class PagoLeer(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    metodo_pago: MetodoPago
+    monto: float
 
 
 class VentaAnular(BaseModel):
@@ -196,6 +214,7 @@ class VentaLeer(BaseModel):
     anulada: bool
     motivo_anulacion: str | None
     detalles: list[DetalleVentaLeer]
+    pagos: list[PagoLeer] = []
 
 
 # -------------------------------------------------------- pedidos de mesa

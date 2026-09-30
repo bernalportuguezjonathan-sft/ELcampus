@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { Link } from 'react-router-dom'
 
 import { api } from '../api/cliente'
 import { useEventos } from '../api/eventos'
@@ -32,6 +33,14 @@ export default function Caja() {
   const [kilos, setKilos] = useState('')
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('efectivo')
   const [recibido, setRecibido] = useState('')
+  // Pago partido: cuánto entró con cada medio. Solo dígitos, como `recibido`.
+  const [partido, setPartido] = useState(false)
+  const [montos, setMontos] = useState<Record<MetodoPago, string>>({
+    efectivo: '',
+    nequi: '',
+    daviplata: '',
+    tarjeta: '',
+  })
   const [mesasEsperando, setMesasEsperando] = useState<Pedido[]>([])
   const [cobrandoMesa, setCobrandoMesa] = useState<Pedido | null>(null)
   const [ultimaVenta, setUltimaVenta] = useState<Venta | null>(null)
@@ -48,7 +57,18 @@ export default function Caja() {
 
   // `recibido` guarda solo dígitos; en pantalla se muestra con puntos de mil.
   const recibidoEnPesos = recibido ? Number(recibido) : 0
-  const vuelto = metodoPago === 'efectivo' && recibido ? recibidoEnPesos - total : null
+  // La diferencia entre lo que entró y lo que se debía. En efectivo es el
+  // vuelto; en los demás medios, plata de más que hay que aclarar.
+  const vuelto = recibido ? recibidoEnPesos - total : null
+
+  // --- pago partido -------------------------------------------------------
+  const pagosPartidos = METODOS.map((m) => ({
+    metodo_pago: m.valor,
+    monto: Number(montos[m.valor] || 0),
+  })).filter((p) => p.monto > 0)
+  const sumaPartida = pagosPartidos.reduce((suma, p) => suma + p.monto, 0)
+  // Positivo: falta plata por repartir. Negativo: se pasaron.
+  const faltaPorRepartir = total - sumaPartida
 
   const cargarMesas = useCallback(async () => {
     try {
@@ -79,6 +99,10 @@ export default function Caja() {
   useEffect(() => {
     const devolverFoco = (e: MouseEvent) => {
       if ((e.target as HTMLElement).closest('input')) return
+      // Hay botones que mandan el cursor a otro campo a propósito (elegir el
+      // medio de pago lleva a «Recibido»). Sin esto, el escáner se lo robaba
+      // de vuelta y el vendedor tenía que ir a buscar el campo con el mouse.
+      if ((e.target as HTMLElement).closest('[data-foco-propio]')) return
       window.setTimeout(() => {
         if (pesando) campoKilos.current?.focus()
         else campoEscaneo.current?.focus()
@@ -196,15 +220,55 @@ export default function Caja() {
     setUltimaClave(null)
     setRecibido('')
     setMetodoPago('efectivo')
+    setPartido(false)
+    setMontos({ efectivo: '', nequi: '', daviplata: '', tarjeta: '' })
   }
 
-  // Pagando en efectivo hay que decir cuánto entregó el cliente: sin eso no
-  // hay vuelto que calcular, y cobrar a ciegas es como se descuadra la caja.
-  // Con los otros medios se cobra el valor exacto, así que no aplica.
-  const faltaRecibido = metodoPago === 'efectivo' && total > 0 && !recibido
+  // Sea efectivo o transferencia, hay que escribir cuánto entró antes de
+  // cobrar. En efectivo para poder dar el vuelto; en Nequi, Daviplata o
+  // tarjeta para confirmar que la plata llegó de verdad y por el valor
+  // correcto. Cobrar a ciegas es como se descuadra la caja.
+  const faltaRecibido = !partido && total > 0 && !recibido
   const recibidoNoAlcanza =
-    metodoPago === 'efectivo' && total > 0 && Boolean(recibido) && recibidoEnPesos < total
-  const sePuedeCobrar = total > 0 && !faltaRecibido && !recibidoNoAlcanza
+    !partido && total > 0 && Boolean(recibido) && recibidoEnPesos < total
+  // Partido: la suma tiene que dar el total exacto. Cobrar de menos es plata
+  // que se pierde; de más, plata que hay que devolver después y ya nadie se
+  // acuerda de cuál venta fue.
+  const partidoNoCuadra = partido && total > 0 && faltaPorRepartir !== 0
+  const sePuedeCobrar =
+    total > 0 && !faltaRecibido && !recibidoNoAlcanza && !partidoNoCuadra
+
+  /** Elegir el medio de pago deja el cursor listo en «Recibido»: sin ese
+   *  dato no se puede cobrar, así que es siempre el paso siguiente. */
+  function elegirPago(medio: MetodoPago) {
+    setMetodoPago(medio)
+    // Después de que React pinte el campo. Va con setTimeout y no con
+    // requestAnimationFrame porque este último se frena si la pestaña no
+    // está visible, y el foco tiene que quedar puesto igual.
+    window.setTimeout(() => {
+      campoRecibido.current?.focus()
+      campoRecibido.current?.select()
+    }, 0)
+  }
+
+  /** Enter baja al siguiente campo del reparto; en el último, cobra.
+   *
+   *  Así se llena con el teclado de corrido, sin soltar la mano para ir a
+   *  buscar el siguiente campo con el mouse.
+   */
+  function bajarConEnter(e: KeyboardEvent<HTMLInputElement>, indice: number) {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    const siguiente = document.querySelector<HTMLInputElement>(
+      `[data-reparto="${indice + 1}"]`,
+    )
+    if (siguiente) {
+      siguiente.focus()
+      siguiente.select()
+    } else if (sePuedeCobrar) {
+      void cobrar()
+    }
+  }
 
   const cobrar = useCallback(async () => {
     if (cobrando) return
@@ -219,17 +283,30 @@ export default function Caja() {
       campoRecibido.current?.focus()
       return
     }
+    if (partidoNoCuadra) {
+      setError(
+        faltaPorRepartir > 0
+          ? `Faltante de ${plata(faltaPorRepartir)} por repartir entre los métodos de pago.`
+          : `Los pagos se pasan por ${plata(-faltaPorRepartir)}.`,
+      )
+      return
+    }
 
     setCobrando(true)
     setError(null)
     try {
+      // Sin partir, se manda solo el medio: el servidor entiende que todo se
+      // pagó con ese. Partido, va el detalle y el servidor vuelve a revisar
+      // que sume — no se confía en que la pantalla lo haya hecho bien.
+      const comoPago = partido
+        ? { metodo_pago: metodoPago, pagos: pagosPartidos }
+        : { metodo_pago: metodoPago }
+
       const venta = cobrandoMesa
-        ? await api.post<Venta>(`/pedidos/${cobrandoMesa.id}/cobrar`, {
-            metodo_pago: metodoPago,
-          })
+        ? await api.post<Venta>(`/pedidos/${cobrandoMesa.id}/cobrar`, comoPago)
         : await api.post<Venta>('/ventas', {
             tipo: 'mostrador',
-            metodo_pago: metodoPago,
+            ...comoPago,
             items: lineas.map((l) => ({
               producto_id: l.producto_id,
               plato_id: l.plato_id,
@@ -255,6 +332,10 @@ export default function Caja() {
     recibidoNoAlcanza,
     recibidoEnPesos,
     total,
+    partido,
+    partidoNoCuadra,
+    faltaPorRepartir,
+    pagosPartidos,
   ])
 
   // F12 cobra sin soltar el lector ni tocar el mouse.
@@ -304,8 +385,16 @@ export default function Caja() {
           <span className={conectado ? 'chip-ok' : 'chip-mal'}>
             ● {conectado ? 'Conectado' : 'Sin conexión en vivo'}
           </span>
-          <button className="btn-peligro" onClick={salir}>
-            Salir
+          {/* El administrador entra a la caja desde su panel; sin esto queda
+              encerrado y le toca cerrar sesión para volver. Al vendedor no le
+              aparece: él no tiene panel al que volver. */}
+          {sesion?.rol === 'administrador' && (
+            <Link className="barra-accion" to="/admin">
+              ← Administración
+            </Link>
+          )}
+          <button className="barra-salir" onClick={salir}>
+            Cerrar sesión
           </button>
         </span>
       </header>
@@ -391,19 +480,22 @@ export default function Caja() {
             <span className="total-valor num">{plata(total)}</span>
           </div>
 
-          <div className="pagos">
-            {METODOS.map((m) => (
-              <button
-                key={m.valor}
-                className={`pago ${metodoPago === m.valor ? 'activo' : ''}`}
-                onClick={() => setMetodoPago(m.valor)}
-              >
-                {m.texto}
-              </button>
-            ))}
-          </div>
+          {!partido && (
+            <div className="pagos">
+              {METODOS.map((m) => (
+                <button
+                  key={m.valor}
+                  className={`pago ${metodoPago === m.valor ? 'activo' : ''}`}
+                  data-foco-propio
+                  onClick={() => elegirPago(m.valor)}
+                >
+                  {m.texto}
+                </button>
+              ))}
+            </div>
+          )}
 
-          {metodoPago === 'efectivo' && (
+          {!partido && (
             <div className="vuelto">
               <label className="fila">
                 <span>Recibido</span>
@@ -416,9 +508,13 @@ export default function Caja() {
                   placeholder="0"
                 />
               </label>
-              {vuelto !== null && vuelto >= 0 && (
+              {/* En efectivo se muestra aunque el vuelto sea $0: así el
+                  vendedor ve confirmado que no tiene que devolver nada. En
+                  transferencia no hay vuelto, y que entre de más es algo para
+                  aclarar con el cliente, no plata del cajón. */}
+              {vuelto !== null && (metodoPago === 'efectivo' ? vuelto >= 0 : vuelto > 0) && (
                 <div className="fila destacada">
-                  <span>Vuelto</span>
+                  <span>{metodoPago === 'efectivo' ? 'Vuelto' : 'Entró de más'}</span>
                   <span className="num">{plata(vuelto)}</span>
                 </div>
               )}
@@ -431,6 +527,75 @@ export default function Caja() {
             </div>
           )}
 
+          {/* ------------------------------------------------ pago partido */}
+          {partido && (
+            <div className="reparto">
+              <span className="etiqueta">¿Cuánto con cada uno?</span>
+              {METODOS.map((m, i) => (
+                <label key={m.valor} className="fila">
+                  <span>{m.texto}</span>
+                  <input
+                    className="campo-recibido num"
+                    data-reparto={i}
+                    value={montos[m.valor] ? miles(Number(montos[m.valor])) : ''}
+                    onChange={(e) =>
+                      setMontos({ ...montos, [m.valor]: soloDigitos(e.target.value) })
+                    }
+                    onKeyDown={(e) => bajarConEnter(e, i)}
+                    inputMode="numeric"
+                    placeholder="0"
+                  />
+                </label>
+              ))}
+
+              <div className={`fila ${faltaPorRepartir === 0 ? 'destacada' : 'falta'}`}>
+                {faltaPorRepartir > 0 && (
+                  <>
+                    <span>Faltante</span>
+                    <span className="num">{plata(faltaPorRepartir)}</span>
+                  </>
+                )}
+                {faltaPorRepartir < 0 && (
+                  <>
+                    <span>Se pasa por</span>
+                    <span className="num">{plata(-faltaPorRepartir)}</span>
+                  </>
+                )}
+                {faltaPorRepartir === 0 && total > 0 && (
+                  <>
+                    <span>Completo</span>
+                    <span className="num">{plata(sumaPartida)}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            className={`pago-partido ${partido ? 'activo' : ''}`}
+            data-foco-propio
+            onClick={() => {
+              const activando = !partido
+              setPartido(activando)
+              setError(null)
+              if (activando) {
+                // Lo que ya escribió en «Recibido» se pasa al efectivo: casi
+                // siempre esa es la parte que pagan en billetes.
+                setMontos({
+                  efectivo: recibidoEnPesos > 0 && recibidoEnPesos <= total ? recibido : '',
+                  nequi: '',
+                  daviplata: '',
+                  tarjeta: '',
+                })
+              } else {
+                setMontos({ efectivo: '', nequi: '', daviplata: '', tarjeta: '' })
+              }
+            }}
+          >
+            {partido ? '← Volver a un solo pago' : 'Pago con dos métodos de pago'}
+          </button>
+
           <button
             className="btn-cobrar"
             onClick={() => void cobrar()}
@@ -440,7 +605,9 @@ export default function Caja() {
                 ? 'Escribe cuánto recibiste'
                 : recibidoNoAlcanza
                   ? 'Lo recibido no alcanza'
-                  : undefined
+                  : partidoNoCuadra
+                    ? 'Los pagos no suman el total'
+                    : undefined
             }
           >
             COBRAR <small>F12</small>
@@ -449,6 +616,14 @@ export default function Caja() {
           {faltaRecibido && (
             <p className="aviso aviso-atencion">
               Escribe cuánto dinero recibiste para poder cobrar.
+            </p>
+          )}
+
+          {partidoNoCuadra && (
+            <p className="aviso aviso-atencion">
+              {faltaPorRepartir > 0
+                ? `Los pagos tienen que sumar el total. Faltante de ${plata(faltaPorRepartir)}.`
+                : `Los pagos suman ${plata(-faltaPorRepartir)} de más.`}
             </p>
           )}
 

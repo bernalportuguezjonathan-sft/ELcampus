@@ -44,16 +44,21 @@ def resumen_del_dia(
         ).where(*filtros)
     ).one()
 
+    # Se agrupa por `pagos_venta` y no por `ventas.metodo_pago`: una venta
+    # pagada mitad y mitad tiene que aparecer repartida entre los dos medios,
+    # no completa en uno solo. `cantidad` cuenta en cuántas ventas se usó ese
+    # medio, así que una venta partida suma una a cada uno.
     por_metodo = [
         schemas.VentasPorMetodo(metodo_pago=metodo, total=float(suma), cantidad=conteo)
         for metodo, suma, conteo in db.execute(
             select(
-                models.Venta.metodo_pago,
-                func.coalesce(func.sum(models.Venta.total), 0.0),
-                func.count(models.Venta.id),
+                models.PagoVenta.metodo_pago,
+                func.coalesce(func.sum(models.PagoVenta.monto), 0.0),
+                func.count(func.distinct(models.PagoVenta.venta_id)),
             )
+            .join(models.Venta, models.Venta.id == models.PagoVenta.venta_id)
             .where(*filtros)
-            .group_by(models.Venta.metodo_pago)
+            .group_by(models.PagoVenta.metodo_pago)
         ).all()
     ]
 

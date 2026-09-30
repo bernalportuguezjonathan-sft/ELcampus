@@ -24,6 +24,7 @@ def cobrar(
         metodo_pago=datos.metodo_pago,
         mesa=datos.mesa,
         items=datos.items,
+        pagos=datos.pagos,
     )
     db.commit()
     db.refresh(venta)

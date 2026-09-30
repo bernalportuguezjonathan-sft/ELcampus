@@ -48,8 +48,8 @@ export default function Mesas() {
           <span className={conectado ? 'chip-ok' : 'chip-mal'}>
             ● {conectado ? 'En línea' : 'Sin señal'}
           </span>
-          <button className="btn-peligro" onClick={salir}>
-            Salir
+          <button className="barra-salir" onClick={salir}>
+            Cerrar sesión
           </button>
         </span>
       </header>

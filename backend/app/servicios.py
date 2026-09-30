@@ -68,6 +68,35 @@ def _resolver(db: Session, consolidados: dict[tuple[str, int, float | None], flo
     return lineas
 
 
+def repartir_pago(total: float, metodo_pago, pagos) -> list[tuple]:
+    """Deja la lista de pagos lista para guardar, o explica por qué no cuadra.
+
+    Sin `pagos`, todo se pagó con un solo medio: es el caso de siempre.
+    Con `pagos`, la suma tiene que dar exactamente el total — cobrar de menos
+    es plata que se pierde y cobrar de más es plata que hay que devolver, y
+    ninguna de las dos se arregla sola después.
+    """
+    if not pagos:
+        return [(metodo_pago, total)]
+
+    montos = [redondear_pesos(p.monto) for p in pagos]
+    suma = redondear_pesos(sum(montos))
+    if suma != redondear_pesos(total):
+        falta = redondear_pesos(total) - suma
+        detalle = (
+            f"Los pagos suman ${suma:,.0f} y la venta es de ${total:,.0f}: "
+            + (f"faltan ${falta:,.0f}." if falta > 0 else f"sobran ${-falta:,.0f}.")
+        ).replace(",", ".")
+        raise HTTPException(status_code=422, detail=detalle)
+
+    # Dos partes con el mismo medio se juntan: "efectivo 10.000 + efectivo
+    # 5.000" es efectivo 15.000, no dos pagos.
+    juntos: dict = {}
+    for pago, monto in zip(pagos, montos):
+        juntos[pago.metodo_pago] = juntos.get(pago.metodo_pago, 0.0) + monto
+    return list(juntos.items())
+
+
 def registrar_venta(
     db: Session,
     *,
@@ -76,6 +105,7 @@ def registrar_venta(
     metodo_pago: models.MetodoPago,
     mesa: int | None,
     items,
+    pagos=None,
 ) -> models.Venta:
     """Cobra y devuelve la venta.
 
@@ -89,15 +119,23 @@ def registrar_venta(
     lineas = _resolver(db, consolidar(items))
     total = redondear_pesos(sum(linea["subtotal"] for linea in lineas))
 
+    repartido = repartir_pago(total, metodo_pago, pagos)
+    # En `Venta.metodo_pago` queda con el que más se pagó: sigue sirviendo
+    # para mirar una venta de un vistazo, y la plata exacta está en `pagos`.
+    principal = max(repartido, key=lambda par: par[1])[0]
+
     venta = models.Venta(
         tipo=tipo,
         mesa=mesa,
         total=total,
-        metodo_pago=metodo_pago,
+        metodo_pago=principal,
         vendedor_id=vendedor.id,
     )
     db.add(venta)
     db.flush()
+
+    for medio, monto in repartido:
+        db.add(models.PagoVenta(venta_id=venta.id, metodo_pago=medio, monto=monto))
 
     for linea in lineas:
         db.add(

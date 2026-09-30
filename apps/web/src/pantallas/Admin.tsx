@@ -152,6 +152,51 @@ function Resumen() {
   )
 }
 
+/** Saluda al administrador al entrar, una sola vez.
+ *
+ *  Se lee y se borra de una: si el administrador cambia de pestaña, se va a
+ *  la caja y vuelve, o recarga la página, no se lo repite. Solo vuelve a
+ *  salir cuando vuelva a iniciar sesión.
+ */
+function Bienvenida() {
+  const [nombre, setNombre] = useState<string | null>(null)
+
+  useEffect(() => {
+    let guardado: string | null = null
+    try {
+      guardado = sessionStorage.getItem('elcampus.saludo')
+      if (guardado) sessionStorage.removeItem('elcampus.saludo')
+    } catch {
+      return
+    }
+    if (guardado) setNombre(guardado)
+  }, [])
+
+  useEffect(() => {
+    if (!nombre) return
+    const reloj = setTimeout(() => setNombre(null), 6000)
+    return () => clearTimeout(reloj)
+  }, [nombre])
+
+  if (!nombre) return null
+
+  return (
+    <div className="bienvenida" role="status">
+      <span className="bienvenida-texto">
+        Bienvenido, <b>{nombre}</b>
+      </span>
+      <button
+        type="button"
+        className="bienvenida-cerrar"
+        onClick={() => setNombre(null)}
+        aria-label="Cerrar el saludo"
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
 export default function Admin() {
   const { sesion, salir } = useSesion()
   const [pestana, setPestana] = useState<Pestana>('resumen')
@@ -159,6 +204,7 @@ export default function Admin() {
   return (
     <div className="panel">
       <Fondo />
+      <Bienvenida />
       <header className="barra">
         <span className="marca">EL CAMPUS</span>
         <nav className="pestanas">
@@ -189,11 +235,11 @@ export default function Admin() {
         </nav>
         <span className="der">
           <span className="quien">{sesion?.nombre}</span>
-          <Link className="btn-peligro" to="/caja">
+          <Link className="barra-accion" to="/caja">
             Caja
           </Link>
-          <button className="btn-peligro" onClick={salir}>
-            Salir
+          <button className="barra-salir" onClick={salir}>
+            Cerrar sesión
           </button>
         </span>
       </header>

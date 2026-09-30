@@ -77,6 +77,52 @@ def main() -> int:
             )
             hechos.append("detalle_pedido_mesa.precio_fijado agregada")
 
+        # --- una venta puede pagarse con varias cosas a la vez ---
+        tablas = {
+            fila[0]
+            for fila in con.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table'")
+            )
+        }
+        if "pagos_venta" not in tablas:
+            con.execute(
+                text(
+                    """
+                    CREATE TABLE pagos_venta (
+                        id INTEGER NOT NULL PRIMARY KEY,
+                        venta_id INTEGER NOT NULL REFERENCES ventas(id),
+                        metodo_pago VARCHAR(10) NOT NULL,
+                        monto FLOAT NOT NULL,
+                        CONSTRAINT ck_pago_venta_monto_positivo CHECK (monto > 0)
+                    )
+                    """
+                )
+            )
+            con.execute(
+                text("CREATE INDEX ix_pagos_venta_venta_id ON pagos_venta(venta_id)")
+            )
+            hechos.append("tabla pagos_venta creada")
+
+        # Las ventas que ya existían se pasan a la tabla nueva con su método y
+        # su total: así los reportes y el cierre de caja siguen cuadrando desde
+        # el primer día y no hay que tratar aparte a las viejas.
+        faltantes = con.execute(
+            text(
+                "SELECT COUNT(*) FROM ventas v "
+                "WHERE NOT EXISTS (SELECT 1 FROM pagos_venta p WHERE p.venta_id = v.id)"
+            )
+        ).scalar_one()
+        if faltantes:
+            con.execute(
+                text(
+                    "INSERT INTO pagos_venta (venta_id, metodo_pago, monto) "
+                    "SELECT v.id, v.metodo_pago, v.total FROM ventas v "
+                    "WHERE v.total > 0 AND NOT EXISTS "
+                    "(SELECT 1 FROM pagos_venta p WHERE p.venta_id = v.id)"
+                )
+            )
+            hechos.append(f"{faltantes} ventas anteriores pasadas a pagos_venta")
+
     if hechos:
         for h in hechos:
             print(f"  · {h}")

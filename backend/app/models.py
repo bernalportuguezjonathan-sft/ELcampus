@@ -148,6 +148,36 @@ class Venta(Base):
 
     vendedor: Mapped["Usuario"] = relationship(foreign_keys=[vendedor_id])
     detalles: Mapped[list["DetalleVenta"]] = relationship(back_populates="venta")
+    pagos: Mapped[list["PagoVenta"]] = relationship(
+        back_populates="venta", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class PagoVenta(Base):
+    """Con qué pagaron una venta, y cuánto con cada cosa.
+
+    Existe porque el cliente puede pagar una parte en efectivo y el resto por
+    Nequi o tarjeta. Antes la venta tenía un solo método y una plata partida
+    quedaba toda anotada como si fuera de uno solo: la caja no cuadraba al
+    cerrar el turno.
+
+    `Venta.metodo_pago` se conserva y guarda el medio con el que más se pagó,
+    para que siga sirviendo de resumen rápido. La plata de verdad se cuenta
+    desde aquí.
+    """
+
+    __tablename__ = "pagos_venta"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    venta_id: Mapped[int] = mapped_column(ForeignKey("ventas.id"), index=True)
+    metodo_pago: Mapped[MetodoPago] = mapped_column(SAEnum(MetodoPago))
+    monto: Mapped[float]
+
+    venta: Mapped["Venta"] = relationship(back_populates="pagos")
+
+    __table_args__ = (
+        CheckConstraint("monto > 0", name="ck_pago_venta_monto_positivo"),
+    )
 
 
 class DetalleVenta(Base):

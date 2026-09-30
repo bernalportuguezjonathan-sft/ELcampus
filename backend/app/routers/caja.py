@@ -20,10 +20,18 @@ def _turno_abierto(db: Session) -> models.CierreCaja | None:
 
 
 def _efectivo_del_turno(db: Session, desde: datetime) -> float:
+    """Lo que debería haber en el cajón.
+
+    Se suma desde `pagos_venta` y no desde `ventas.total`: si alguien pagó
+    $35.000 con $20.000 en efectivo y $15.000 por Nequi, en el cajón hay
+    $20.000. Contando la venta entera el arqueo daba faltante de $15.000.
+    """
     total = db.scalar(
-        select(func.coalesce(func.sum(models.Venta.total), 0.0)).where(
+        select(func.coalesce(func.sum(models.PagoVenta.monto), 0.0))
+        .join(models.Venta, models.Venta.id == models.PagoVenta.venta_id)
+        .where(
             models.Venta.fecha_hora >= desde,
-            models.Venta.metodo_pago == models.MetodoPago.efectivo,
+            models.PagoVenta.metodo_pago == models.MetodoPago.efectivo,
             models.Venta.anulada.is_(False),
         )
     )

@@ -318,6 +318,7 @@ async def cobrar_mesa(
         metodo_pago=datos.metodo_pago,
         mesa=pedido.mesa,
         items=pedido.detalles,
+        pagos=datos.pagos,
     )
 
     # Cobrar la mesa y cerrarla es una sola operación: nunca puede quedar

@@ -56,26 +56,22 @@ export default function PlatosFinDeSemana() {
   const [guardando, setGuardando] = useState(false)
 
   /** Trae la carta completa, no el menú de hoy: el administrador arma el fin
-   *  de semana escogiendo entre todos los platos que existen. */
-  function cargar(marcarLoPublicado = false) {
+   *  de semana escogiendo entre todos los platos que existen.
+   *
+   *  La pantalla abre siempre en limpio —nada marcado y con las fechas del
+   *  próximo fin de semana—. Antes arrancaba marcando lo que ya estaba
+   *  publicado y, peor, copiaba sus fechas: si ese menú era del fin de semana
+   *  pasado, uno le daba publicar y quedaba publicado otra vez para unos días
+   *  que ya pasaron. Se veía como si el botón no sirviera.
+   */
+  function cargar() {
     api
       .get<Plato[]>('/platos?solo_vigentes=false')
-      .then((todos) => {
-        setPlatos(todos)
-        if (!marcarLoPublicado) return
-        // Lo que ya está publicado arranca marcado, para que volver a
-        // publicar no borre sin querer el menú que ya estaba puesto.
-        const puestos = todos.filter((p) => p.tipo === 'especial' && p.activo_desde)
-        setElegidos(new Set(puestos.map((p) => p.id)))
-        if (puestos[0]?.activo_desde && puestos[0]?.activo_hasta) {
-          setDesde(puestos[0].activo_desde)
-          setHasta(puestos[0].activo_hasta)
-        }
-      })
+      .then(setPlatos)
       .catch((f) => setError(f instanceof Error ? f.message : 'No se pudo cargar la carta.'))
   }
 
-  useEffect(() => cargar(true), [])
+  useEffect(cargar, [])
 
   useEffect(() => {
     if (!listo) return
@@ -109,9 +105,10 @@ export default function PlatosFinDeSemana() {
       })
       setListo(
         elegidos.size === 0
-          ? 'Menú publicado: este fin de semana van solo los platos fijos.'
-          : `Menú publicado: ${elegidos.size} ${elegidos.size === 1 ? 'plato' : 'platos'} del ${dia(desde)} al ${dia(hasta)}.`,
+          ? 'Se publicó exitosamente el menú: van solo los platos fijos.'
+          : `Se publicó exitosamente el menú · ${elegidos.size} ${elegidos.size === 1 ? 'plato' : 'platos'} del ${dia(desde)} al ${dia(hasta)}.`,
       )
+      setElegidos(new Set())
       cargar()
     } catch (fallo) {
       setError(fallo instanceof Error ? fallo.message : 'No se pudo publicar el menú.')
@@ -172,6 +169,9 @@ export default function PlatosFinDeSemana() {
   }
 
   const fechasAlReves = Boolean(desde && hasta && hasta < desde)
+  // Un menú con fechas pasadas se guarda pero no le sale a nadie: el mesero
+  // solo ve lo que está vigente hoy. Es el aviso que faltaba.
+  const fechasYaPasaron = Boolean(hasta && hasta < aISO(new Date()))
 
   return (
     <section className="tarjeta tarjeta-ancha">
@@ -205,6 +205,14 @@ export default function PlatosFinDeSemana() {
           {fechasAlReves && (
             <p className="aviso aviso-error">
               La fecha de fin no puede ser anterior a la de inicio.
+            </p>
+          )}
+
+          {fechasYaPasaron && !fechasAlReves && (
+            <p className="aviso aviso-atencion">
+              Ese fin de semana ya pasó. Si publicas con estas fechas, el menú
+              queda guardado pero no le aparece al mesero. Cambia las fechas al
+              fin de semana que viene.
             </p>
           )}
 
@@ -285,7 +293,7 @@ export default function PlatosFinDeSemana() {
             <button
               className="btn-primario"
               onClick={() => void publicar()}
-              disabled={publicando || fechasAlReves || !desde || !hasta}
+              disabled={publicando || fechasAlReves || fechasYaPasaron || !desde || !hasta}
             >
               {publicando
                 ? 'Publicando…'

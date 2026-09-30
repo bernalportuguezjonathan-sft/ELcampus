@@ -230,7 +230,9 @@ export default function Mesa() {
           ← Mesas
         </button>
         <span className="marca">MESA {numero}</span>
-        <span className="der pista">
+        {/* Verde o rojo: el mesero tiene que saber de un vistazo, desde lejos
+            y con el celular en la mano, si la mesa está libre u ocupada. */}
+        <span className={`der estado-mesa ${ocupada ? 'esta-ocupada' : 'esta-libre'}`}>
           {!ocupada
             ? 'Libre'
             : pedido!.estado === 'cuenta_pedida'
